@@ -1,7 +1,8 @@
 import yfinance as yf
 import pandas as pd
-
-
+import yahooquery
+from typing import Literal
+import re
 class YFinanceAnalyzer:
     """
     A class to retrieve financial metrics for a given ticker using yfinance.
@@ -15,6 +16,7 @@ class YFinanceAnalyzer:
         Parameters:
         ticker (str): The stock ticker, e.g. "AAPL".
         """
+        self.query_ticker = yahooquery.Ticker(ticker)
         self.ticker = yf.Ticker(ticker)
         self.info = self.ticker.info
         # Quarterly income statement and financials
@@ -23,6 +25,11 @@ class YFinanceAnalyzer:
 
         # S&P 500 index ticker for market metrics
         self.market_ticker = yf.Ticker("^GSPC")
+    @staticmethod
+    def output_yfinance_format(df: pd.DataFrame, date_name: str, output_colname: str) -> pd.Series:
+
+        df = df.set_index(date_name)[output_colname].sort_index(ascending=False).rename_axis(None)
+        return df
 
     def get_price(self, period: str = "1mo", interval: str = "1d") -> pd.Series:
         """
@@ -163,9 +170,49 @@ class YFinanceAnalyzer:
         var = df["market"].var()
         return cov / var
 
+    def get_past_fiscal_year_end_shares(self, period: str = "5y") -> pd.DataFrame:
+
+        t = self.query_ticker
+        df = t.income_statement(frequency='a', trailing=True)
+        df = df[df.periodType == '12M']
+        df = self.output_yfinance_format(df, date_name='asOfDate', output_colname='BasicAverageShares')
+        return df
+
+    def get_past_fiscal_year_end_stock_price(self,
+                                             period_end_month: int,
+                                             period_end_day: int,
+                                             period: str = "5y") -> pd.DataFrame:
+
+        price_hist = self.get_price(period=period, interval="1d")
+        price_hist = price_hist.reset_index()
+        price_hist.Date = price_hist.Date.apply(lambda x: x.date())
+        price_hist = price_hist.sort_values('Date')
+        full_idx = pd.date_range(price_hist.Date.min(), price_hist.Date.max(), freq='D')
+
+        price_hist = price_hist.set_index("Date").reindex(full_idx).ffill()
+        price_hist = price_hist.reset_index().rename(columns={"index": "Date"})
+
+        price_hist = price_hist[price_hist['Date'].dt.month.eq(period_end_month) & price_hist['Date'].dt.day.eq(period_end_day)]
+
+        df = self.output_yfinance_format(price_hist, date_name="Date", output_colname="Close")
+        return df
+
+    def get_past_financial(self) -> pd.DataFrame:
+
+        df = self.ticker.financials
+        return df
+
+    def get_past_balance_sheet(self) -> pd.DataFrame:
+        df = self.ticker.balance_sheet
+        return df
+
+
 if __name__ == "__main__":
     # Example usage:
     analyzer = YFinanceAnalyzer("AAPL")
+    analyzer.get_past_fiscal_year_end_stock_price(period_end="09-30")
+    analyzer.get_past_fiscal_year_end_shares(period="5y")
+    analyzer.get_past_financial()
     print(analyzer.get_price("5d"))
     print(analyzer.get_eps(n_quarters=4))
     print(analyzer.get_pe_ratio("5d", "1d", 4))
