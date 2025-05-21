@@ -32,8 +32,10 @@ class CombinedReportPDF:
     P = Path(__file__).resolve()
     PROJECT_DIR = P.parents[3]
     IMAGE_DIR = PROJECT_DIR / 'data' / 'images'
+    STATIC_IMAGE_DIR = PROJECT_DIR / '_static' / 'images'
     FDATA_DIR = PROJECT_DIR / 'data' / 'fdata'
     OUTPUT_DIR = PROJECT_DIR / 'data' / 'reports'
+
     for d in (IMAGE_DIR, FDATA_DIR, OUTPUT_DIR):
         d.mkdir(parents=True, exist_ok=True)
 
@@ -245,7 +247,7 @@ class CombinedReportPDF:
             ReportLabStyles.TITLE_TABLE_STYLE, ReportLabStyles.TABLE_STYLE, ReportLabStyles.STYLE_COMMAND)
         ## ------------------------------------------------ <END> Define reportlab styles------------------------------------------------ ##
         # Setting paths
-        caesars_path = str(self.IMAGE_DIR / 'nus_avatar.png')
+        caesars_path = str(self.STATIC_IMAGE_DIR / 'nus_avatar.png')
 
         # Get statements
         result = self._get_text()
@@ -475,7 +477,7 @@ class CombinedReportPDF:
         width = right_w * 2
         height = width // 2 * 1.5
         content.append(
-            Image(str(self.IMAGE_DIR / 'price_earning_history.png'), width=width,height=height, hAlign="LEFT"))
+            Image(str(self.STATIC_IMAGE_DIR / 'price_earning_history.png'), width=width,height=height, hAlign="LEFT"))
 
         content.append(Paragraph("Risk Assessment", SUBTITLE_STYLE))
         content.append(Paragraph(risk, CUSTOM_STYLE))
@@ -488,7 +490,7 @@ class CombinedReportPDF:
 
         width = right_w * 3
         height = width // 2
-        content.append(Image(str(self.IMAGE_DIR / 'industry_comparison.png'),
+        content.append(Image(str(self.STATIC_IMAGE_DIR / 'industry_comparison.png'),
                              width=width, height=height, hAlign="LEFT"))
 
         ## Todo: Adding some dummy PNG
@@ -506,7 +508,7 @@ class CombinedReportPDF:
 
         width = right_w * 3
         height = width // 2
-        content.append(Image(str(self.IMAGE_DIR / 'company_to_industry_comparison.png'),
+        content.append(Image(str(self.STATIC_IMAGE_DIR / 'company_to_industry_comparison.png'),
                              width=width, height=height, hAlign="LEFT"))
 
         content.append(NextPageTemplate("OneCol"))
@@ -522,7 +524,7 @@ class CombinedReportPDF:
         content.append(Paragraph("Peer Comparison Ratios", SUBTITLE_STYLE))
         width = right_w * 3
         height = width // 2
-        content.append(Image(str(self.IMAGE_DIR / 'peer_comparison_ratios.png'),
+        content.append(Image(str(self.STATIC_IMAGE_DIR / 'peer_comparison_ratios.png'),
                              width=width, height=height, hAlign="LEFT"))
 
         doc.build(content)
@@ -686,7 +688,7 @@ class CombinedReportPDF:
 
 if __name__ == "__main__":
     # Example usage:
-    ticker = "LUV"
+    ticker = "UAL"
     year = 2025
     quarter = 1
     output_name = f'{ticker}_{year}_{quarter}_report.pdf'
