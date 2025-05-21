@@ -4,7 +4,7 @@ from enum import Enum
 from typing import Literal
 
 class SummaryGenerated(BaseModel):
-    signal: str
+    signal: Literal['Buy', 'Sell', 'Hold']
     summary: str
 
 class ReportGenerated(BaseModel):

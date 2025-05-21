@@ -77,7 +77,7 @@ class ReportLabStyles(object):
         ]
     )
     STYLE_COMMAND = [
-        ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.lightslategrey),
         # ("BACKGROUND", (0, 1), (-1, 1), colors.lightskyblue),
         ("FONT", (0, 0), (-1, -1), "Helvetica", 7),
         ("FONT", (0, 0), (-1, 0), "Helvetica-Bold", 14),
@@ -85,8 +85,8 @@ class ReportLabStyles(object):
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("ALIGN", (0, 0), (-1, -1), "LEFT"),
         ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ("LINEBELOW", (0, 0), (-1, 0), 2, colors.black),
-        ("LINEBELOW", (0, -1), (-1, -1), 2, colors.black),
+        ("LINEBELOW", (0, 0), (-1, 0), 1, colors.black),
+        ("LINEBELOW", (0, -1), (-1, -1), 1, colors.black),
     ]
 
     BG_TABLE_STYLE = TableStyle(

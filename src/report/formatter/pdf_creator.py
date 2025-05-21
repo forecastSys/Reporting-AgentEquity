@@ -1,29 +1,27 @@
-import os
-from datetime import date
-
 from src.report.generator import InvestmentReportGenerator
 from src.fdata_extractors.findata_extractor import YFinanceAnalyzer
 from src.report.plotter import FinancialPlotter
 from src.report.formatter import ReportLabStyles
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
-import json
-import textwrap3
-import pandas as pd
-import random
 
 from reportlab.lib import pagesizes, colors
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_JUSTIFY
 from reportlab.platypus import (
     SimpleDocTemplate, Frame, PageTemplate,
     Paragraph, Image, Table, TableStyle,
     Spacer, FrameBreak, NextPageTemplate, PageBreak
 )
-from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
-from reportlab.lib.units import inch
+
+import json
+import textwrap3
+import pandas as pd
+import random
+from pathlib import Path
+import os
+from datetime import date
+import numpy as np
+from typing import Union
 import copy
+
 class CombinedReportPDF:
     """
     Generates a multi-page PDF combining:
@@ -31,12 +29,19 @@ class CombinedReportPDF:
       - Financial charts (Close & MA15/30/60/90, EPS vs. P/E)
       - Annual metrics table for previous 5 years
     """
+    P = Path(__file__).resolve()
+    PROJECT_DIR = P.parents[3]
+    IMAGE_DIR = PROJECT_DIR / 'data' / 'images'
+    FDATA_DIR = PROJECT_DIR / 'data' / 'fdata'
+    OUTPUT_DIR = PROJECT_DIR / 'data' / 'reports'
+    for d in (IMAGE_DIR, FDATA_DIR, OUTPUT_DIR):
+        d.mkdir(parents=True, exist_ok=True)
 
-    def __init__(self, ticker: str, year: int, quarter: int, output_path: str = "combined_report.pdf"):
+    def __init__(self, ticker: str, year: int, quarter: int, output_name: str = "combined_report.pdf"):
         self.ticker = ticker
         self.year = year
         self.quarter = quarter
-        self.output_path = output_path
+        self.output_path = self.OUTPUT_DIR / output_name
         # Initialize LLM-based report generator
         self.generator = InvestmentReportGenerator()
         self.plotter = FinancialPlotter(ticker)
@@ -61,7 +66,7 @@ class CombinedReportPDF:
 
     def _get_text(self) -> str:
         """Fetch and wrap LLM text sections"""
-        filename = f"report_sections_{self.ticker}_{self.year}_{self.quarter}.json"
+        filename = self.FDATA_DIR / f"report_sections_{self.ticker}_{self.year}_{self.quarter}.json"
         if os.path.exists(filename):
             with open(filename, "r", encoding="utf-8") as f:
                 result = json.load(f)
@@ -76,47 +81,65 @@ class CombinedReportPDF:
             summary = result["investment_summary"]["summary"] if isinstance(result["investment_summary"], dict) else result["investment_summary"]
             business = result["business_overview"]["report"] if isinstance(result["business_overview"], dict) else result["business_overview"]
             risk     = result["risk_assessment"]["report"] if isinstance(result["risk_assessment"], dict) else result["risk_assessment"]
-            # build the result dict
-            result = {
-                "signal": buy_sell_sign,
-                "investment_summary": summary,
-                "business_overview": business,
-                "risk_assessment": risk
-            }
-            # write to a file
             with open(filename, "w", encoding="utf-8") as f:
                 json.dump(result, f, ensure_ascii=False, indent=4)
 
+        results = {
+            "signal": buy_sell_sign,
+            "investment_summary": summary,
+            "business_overview": business,
+            "risk_assessment": risk
+        }
         # full = (
         #     '<b>Investment Summary</b><br/>' + summary.replace('\n', '<br/>') + '<br/><br/>' +
         #     '<b>Business Overview</b><br/>'   + business.replace('\n', '<br/>') + '<br/><br/>' +
         #     '<b>Risk Assessment</b><br/>'     + risk.replace('\n', '<br/>')
         # )
-        return result
-    #
+        return results
+
     def _save_charts(self):
         """Generate and save chart images via matplotlib"""
         # MA chart
         df_ma = self.analyzer.get_all_mas(price_period='1y', price_interval='1d', ma_windows=[15,30,60,90])
-        ma_path = f"{self.ticker}_{self.year}_{self.quarter}_ma.png"
+        ma_path = self.IMAGE_DIR / f"{self.ticker}_{self.year}_{self.quarter}_ma.png"
         plt_ma = self.plotter.plot_moving_averages_to_fig(df_ma)
         plt_ma.savefig(ma_path, bbox_inches='tight')
 
         # EPS/PER chart
         eps = self.analyzer.get_eps(n_quarters=4)
         pe  = self.analyzer.get_pe_ratio(price_period='1d', price_interval='1d', n_quarters=4)
-        pe_path = f"{self.ticker}_{self.year}_{self.quarter}_eps_pe.png"
+        pe_path = self.IMAGE_DIR / f"{self.ticker}_{self.year}_{self.quarter}_eps_pe.png"
         plt_pe = self.plotter.plot_eps_pe_to_fig(eps, pe)
         plt_pe.savefig(pe_path, bbox_inches='tight')
 
         df_oil = self.oil_analyzer.ticker.history(period='6mo', interval='1d')
-        oil_path = f"{self.ticker}_{self.year}_{self.quarter}_oil.png"
+        oil_path = self.IMAGE_DIR / f"{self.ticker}_{self.year}_{self.quarter}_oil.png"
         plt_oil = self.plotter.plot_oil_price(df_oil, period='6mo', interval='1d')
         plt_oil.savefig(oil_path, bbox_inches='tight')
-        return ma_path, pe_path, oil_path
+        return str(ma_path), str(pe_path), str(oil_path)
 
-    def _get_table_data(self):
-        filename = f"{self.ticker}_{self.year}_{self.quarter}_table_df.csv"
+    def _get_table_data(self, period: str='5y'):
+
+        year_count = int(period[0])
+        def _get_div_sorted_desc(a: pd.DataFrame, b: pd.DataFrame, return_type: str = 'array') -> Union[
+            np.array, pd.DataFrame]:
+            """
+            values_list = a / b
+            """
+            out_div = a.div(b).sort_index(ascending=False)
+            if return_type == 'array':
+                return out_div.values
+            else:
+                return out_div
+
+        def _extend_year(df: pd.DataFrame, years_dt: list) -> pd.DataFrame:
+            """
+
+            """
+            df = df.reindex(years_dt).sort_index(ascending=False)
+            return df
+
+        filename = self.FDATA_DIR / f"{self.ticker}_{self.year}_{self.quarter}_table_df.csv"
         if not os.path.exists(filename):
             # # Prepare annual metrics table
             # # Use yfinance annual financials and balance sheet
@@ -124,16 +147,29 @@ class CombinedReportPDF:
             bal_sheet = self.analyzer.get_past_balance_sheet()  # quarterly; approximate use first column per year
             fiscal_month = int(bal_sheet.columns[0].month)
             fiscal_day = int(bal_sheet.columns[0].day)
-            years = [str(int(y.year)) for y in annual_fs.columns[:5]]
+
+            ## append years if less than 5
+            idx = pd.to_datetime(annual_fs.columns)
+            last_date = idx.max()
+            years_dt = pd.date_range(end=last_date, periods=year_count, freq='YE')
+            years = [str(d.year) for d in years_dt]
+            years = sorted(years, key=int, reverse=True)
+            # years = [str(int(y.year)) for y in annual_fs.columns[:year_count]]
 
             rev = annual_fs.loc['Total Revenue', :]
             net = annual_fs.loc['Net Income', :]
             ebitda = annual_fs.loc['EBITDA', :]
 
+            rev = _extend_year(rev, years_dt)
+            net = _extend_year(net, years_dt)
+            ebitda = _extend_year(ebitda, years_dt)
+
             # Compute ROE: Net Income / Shareholder Equity
             eq = bal_sheet.loc['Stockholders Equity', :]
+            eq = _extend_year(eq, years_dt)
             # balance_sheet quarterly; take first column of each year-end quarter
-            roe_vals = net.values / eq.values
+            roe_vals = _get_div_sorted_desc(net, eq)
+            # roe_vals = net.values / eq.values
 
             # Compute P/E per year: year-end close / (Net Income/Shares)
 
@@ -143,13 +179,18 @@ class CombinedReportPDF:
                 period='5y')
 
             shares_hist = self.analyzer.get_past_fiscal_year_end_shares(period='5y')
+            shares_hist = _extend_year(shares_hist, years_dt)
 
-            eps_year = net.values / shares_hist.values
-            pe_vals = price_hist.values / eps_year
+            eps_year = _get_div_sorted_desc(net, shares_hist, return_type='df')
+            pe_vals = _get_div_sorted_desc(price_hist, eps_year)
+            # eps_year = net.values / shares_hist.values
+            # pe_vals = price_hist.values / eps_year
 
             # Compute P/B per year: year-end close / (Equity/Shares)
-            book_val = eq.values / shares_hist.values
-            pb_vals = price_hist.values / book_val
+            book_val = _get_div_sorted_desc(eq, shares_hist, return_type='df')
+            pb_vals = _get_div_sorted_desc(price_hist, book_val)
+            # book_val = eq.values / shares_hist.values
+            # pb_vals = price_hist.values / book_val
 
             table_df = pd.DataFrame(
                 {
@@ -195,13 +236,16 @@ class CombinedReportPDF:
         #     "business_overview"]
         # risk = result["risk_assessment"]["report"] if isinstance(result["risk_assessment"], dict) else result[
         #     "risk_assessment"]
+
+        ## ---------------------------------------------- <START> Define reportlab styles ----------------------------------------------- ##
+
         CUSTOM_STYLE, TITLE_STYLE, SUBTITLE_STYLE,\
             TITLE_TABLE_STYLE, TABLE_STYLE, STYLE_COMMAND= (
             ReportLabStyles.CUSTOM_STYLE, ReportLabStyles.TITLE_STYLE, ReportLabStyles.SUBTITLE_STYLE,
             ReportLabStyles.TITLE_TABLE_STYLE, ReportLabStyles.TABLE_STYLE, ReportLabStyles.STYLE_COMMAND)
+        ## ------------------------------------------------ <END> Define reportlab styles------------------------------------------------ ##
         # Setting paths
-        caesars_path = r'nus_avatar.png'
-
+        caesars_path = str(self.IMAGE_DIR / 'nus_avatar.png')
 
         # Get statements
         result = self._get_text()
@@ -214,7 +258,7 @@ class CombinedReportPDF:
         ma_path, pe_path, oil_path = self._save_charts()
 
         # get table data
-        header, table, df_shape = self._get_table_data()
+        header, fm_metrics_table, df_shape = self._get_table_data()
 
         page_w, page_h = pagesizes.A4
         margin = 4
@@ -222,102 +266,9 @@ class CombinedReportPDF:
         right_w = page_w - left_w
 
         doc = SimpleDocTemplate(
-            self.output_path,
+            str(self.output_path),
             pagesize=A4
         )
-
-        # styles = getSampleStyleSheet()
-        # # define styles
-        # custom_style = ParagraphStyle(
-        #     name="Custom",
-        #     parent=styles["Normal"],
-        #     fontName="Helvetica",
-        #     fontSize=10,
-        #     # leading=15,
-        #     alignment=TA_JUSTIFY,
-        #     backColor=colors.ghostwhite,
-        # )
-        #
-        # title_style = ParagraphStyle(
-        #     name="TitleCustom",
-        #     parent=styles["Title"],
-        #     fontName="Helvetica-Bold",
-        #     fontSize=16,
-        #     leading=20,
-        #     alignment=TA_LEFT,
-        #     spaceAfter=0,
-        #     textColor=colors.blue,
-        # )
-        #
-        # subtitle_style = ParagraphStyle(
-        #     name="Subtitle",
-        #     parent=styles["Heading2"],
-        #     fontName="Helvetica-Bold",
-        #     # fontSize=14,
-        #     # leading=12,
-        #     alignment=TA_LEFT,
-        #     spaceAfter=6,
-        #     backColor=colors.lightblue,
-        # )
-        #
-        # title_table_style = TableStyle(
-        #     [
-        #         ("BACKGROUND", (0, 0), (-1, -1), colors.white),
-        #         ("BACKGROUND", (0, 0), (-1, 0), colors.lightblue),
-        #         ("FONT", (0, 0), (-1, -1), "Helvetica", 8),
-        #         ("FONT", (0, 0), (-1, 0), "Helvetica-Bold", 12),
-        #         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        #         ("ALIGN", (0, 1), (0, -1), "LEFT"),
-        #         ("ALIGN", (1, 1), (1, -1), "RIGHT"),
-        #         ("LINEBELOW", (0, 0), (-1, 0), 1, colors.deepskyblue),
-        #         ("TEXTCOLOR", (0, 0), (0, -1), colors.black),
-        #         ("TEXTCOLOR", (1, 1), (-1, -1), colors.red),
-        #         ("TEXTCOLOR", (1, 3), (-1, 3), colors.grey)
-        #     ]
-        # )
-        #
-        # table_style = TableStyle(
-        #     [
-        #         ("BACKGROUND", (0, 0), (-1, -1), colors.white),
-        #         ("BACKGROUND", (0, 0), (-1, 0), colors.lightblue),
-        #         ("FONT", (0, 0), (-1, -1), "Helvetica", 8),
-        #         ("FONT", (0, 0), (-1, 0), "Helvetica-Bold", 12),
-        #         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        #         ("ALIGN", (0, 1), (0, -1), "LEFT"),
-        #         ("ALIGN", (1, 1), (1, -1), "RIGHT"),
-        #         ("LINEBELOW", (0, 0), (-1, 0), 2, colors.deepskyblue),
-        #     ]
-        # )
-        # style_commands = [
-        #     ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
-        #     # ("BACKGROUND", (0, 1), (-1, 1), colors.lightskyblue),
-        #     ("FONT", (0, 0), (-1, -1), "Helvetica", 7),
-        #     ("FONT", (0, 0), (-1, 0), "Helvetica-Bold", 14),
-        #     ("FONT", (0, 1), (-1, 1), "Helvetica-Bold", 8),
-        #     ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        #     ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-        #     ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        #     ("LINEBELOW", (0, 0), (-1, 0), 2, colors.black),
-        #     ("LINEBELOW", (0, -1), (-1, -1), 2, colors.black),
-        # ]
-        #
-        # bg_table_style = TableStyle(
-        #     style_commands,
-        # )
-
-        # table_style2 = TableStyle(
-        #     [
-        #         ("BACKGROUND", (0, 0), (-1, -1), colors.white),
-        #         ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
-        #         ("FONT", (0, 0), (-1, -1), "Helvetica", 7),
-        #         ("FONT", (0, 0), (-1, 0), "Helvetica-Bold", 14),
-        #         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        #         ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-        #         ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        #         ("LINEBELOW", (0, 0), (-1, 0), 2, colors.black),
-        #         ("LINEBELOW", (0, -1), (-1, -1), 2, colors.black),
-        #     ]
-        # )
 
         ## create page template with one coloumns
         single_frame = Frame(
@@ -393,19 +344,7 @@ class CombinedReportPDF:
         content.append(Paragraph("Business Overview", SUBTITLE_STYLE))
         content.append(Paragraph(business, CUSTOM_STYLE))
 
-        col_widths = [(left_w - margin * 4) * 1.2 / df_shape[1]] * df_shape[1]
-        style_commands_km = copy.deepcopy(STYLE_COMMAND)
-        for col in range(df_shape[1]):
-            bg = colors.lightgrey if (col % 2) == 0 else colors.white
-            style_commands_km.append(
-                ("BACKGROUND", (col, 1), (col, -1), bg)
-            )
-
-        table = [["Key Metrics"]] + header + table
-        table_input = Table(table, colWidths=col_widths, hAlign="LEFT")
-        table_input.setStyle(TableStyle(style_commands_km))
-        content.append(table_input)
-
+        ## Predicted Key Metrics
         col_widths = [(left_w - margin * 4) * 1.2 / df_shape[1]] * df_shape[1]
         pred_header = [[(i + 4 if isinstance(i, int) else i) for i in header[0]]]
         style_commands_km = copy.deepcopy(STYLE_COMMAND)
@@ -417,12 +356,15 @@ class CombinedReportPDF:
         table = ([["Predicted Key Metrics"]]
                  + pred_header +
                  [['Total Revenue (in mil)', 'TBD', 'TBD', 'TBD', 'TBD'],
-                  ['EBITDA (in mil)', 'TBD', 'TBD', 'TBD', 'TBD']
+                  ['EBITDA (in mil)', 'TBD', 'TBD', 'TBD', 'TBD'],
+                  ['Others (in mil)', 'TBD', 'TBD', 'TBD', 'TBD'],
+                  ['Others (in mil)', 'TBD', 'TBD', 'TBD', 'TBD'],
+                  ['Others (in mil)', 'TBD', 'TBD', 'TBD', 'TBD'],
+                  ['Others (in mil)', 'TBD', 'TBD', 'TBD', 'TBD']
                   ])
         table_input = Table(table, colWidths=col_widths, hAlign="LEFT")
         table_input.setStyle(TableStyle(style_commands_km))
         content.append(table_input)
-
 
         # move to the right column
         content.append(FrameBreak())
@@ -506,6 +448,20 @@ class CombinedReportPDF:
         content.append(NextPageTemplate("OneCol"))
         content.append(PageBreak())
 
+        ## Key Metrics
+        col_widths = [(left_w - margin * 4) * 1.2 / df_shape[1]] * df_shape[1]
+        style_commands_km = copy.deepcopy(STYLE_COMMAND)
+        for col in range(df_shape[1]):
+            bg = colors.lightgrey if (col % 2) == 0 else colors.white
+            style_commands_km.append(
+                ("BACKGROUND", (col, 1), (col, -1), bg)
+            )
+
+        table = [["Key Metrics"]] + header + fm_metrics_table
+        table_input = Table(table, colWidths=col_widths, hAlign="LEFT")
+        table_input.setStyle(TableStyle(style_commands_km))
+        content.append(table_input)
+
         ## Todo: Adding some dummy PNG
         ### Peer comparison ratios
         # data = [["Price Earning History"]]
@@ -519,7 +475,7 @@ class CombinedReportPDF:
         width = right_w * 2
         height = width // 2 * 1.5
         content.append(
-            Image(r'D:\MyGithub\Reporting-AgentEquity\src\report\formatter\price_earning_history.png', width=width,height=height, hAlign="LEFT"))
+            Image(str(self.IMAGE_DIR / 'price_earning_history.png'), width=width,height=height, hAlign="LEFT"))
 
         content.append(Paragraph("Risk Assessment", SUBTITLE_STYLE))
         content.append(Paragraph(risk, CUSTOM_STYLE))
@@ -532,7 +488,7 @@ class CombinedReportPDF:
 
         width = right_w * 3
         height = width // 2
-        content.append(Image(r'D:\MyGithub\Reporting-AgentEquity\src\report\formatter\industry_comparison.png',
+        content.append(Image(str(self.IMAGE_DIR / 'industry_comparison.png'),
                              width=width, height=height, hAlign="LEFT"))
 
         ## Todo: Adding some dummy PNG
@@ -550,7 +506,7 @@ class CombinedReportPDF:
 
         width = right_w * 3
         height = width // 2
-        content.append(Image(r'D:\MyGithub\Reporting-AgentEquity\src\report\formatter\company_to_industry_comparison.png',
+        content.append(Image(str(self.IMAGE_DIR / 'company_to_industry_comparison.png'),
                              width=width, height=height, hAlign="LEFT"))
 
         content.append(NextPageTemplate("OneCol"))
@@ -566,7 +522,7 @@ class CombinedReportPDF:
         content.append(Paragraph("Peer Comparison Ratios", SUBTITLE_STYLE))
         width = right_w * 3
         height = width // 2
-        content.append(Image(r'D:\MyGithub\Reporting-AgentEquity\src\report\formatter\peer_comparison_ratios.png',
+        content.append(Image(str(self.IMAGE_DIR / 'peer_comparison_ratios.png'),
                              width=width, height=height, hAlign="LEFT"))
 
         doc.build(content)
@@ -730,10 +686,10 @@ class CombinedReportPDF:
 
 if __name__ == "__main__":
     # Example usage:
-    ticker = "UAL"
+    ticker = "LUV"
     year = 2025
     quarter = 1
-    output_path = f'{ticker}_{year}_{quarter}_report.pdf'
-    report = CombinedReportPDF(ticker, year, quarter, output_path=output_path)
+    output_name = f'{ticker}_{year}_{quarter}_report.pdf'
+    report = CombinedReportPDF(ticker, year, quarter, output_name=output_name)
     report.create_pdf()
 
