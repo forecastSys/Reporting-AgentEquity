@@ -1,5 +1,8 @@
-from .reportlab_utils import ReportLabStyles
+from .reportlab_utils import *
 
 __all__ = [
-    'ReportLabStyles'
+    'ReportLabStyles',
+    'ReportLabFrame',
+    'ReportLabGeneralUtils',
+    'ContentUtils'
 ]

@@ -1,12 +1,12 @@
 from src.config.config import FMP_API_KEY
-import os
+from src.abstractions import TextDataABC
 from dotenv import load_dotenv
 import requests
 
 # Load environment variables from .env file
 load_dotenv()
 
-class FMPTranscriptFetcher:
+class FMPTranscriptFetcher(TextDataABC):
     """
     A simple class to fetch earnings call transcripts from FinancialModelingPrep.
     """
@@ -42,7 +42,7 @@ class FMPTranscriptFetcher:
         }
         response = requests.get(url, params=params)
         response.raise_for_status()
-        return response.json()
+        return response.json()[0]
 
 
 if __name__ == "__main__":

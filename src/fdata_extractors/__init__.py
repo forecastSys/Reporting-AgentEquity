@@ -4,6 +4,6 @@ from .sec_filing_extractor import *
 
 __all__ = [
     'FMPTranscriptFetcher',
-    'fetch_sec_filings_text',
+    'SecFilingExtractor',
     'YFinanceAnalyzer'
 ]

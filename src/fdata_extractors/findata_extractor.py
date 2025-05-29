@@ -1,9 +1,10 @@
 import yfinance as yf
 import pandas as pd
 import yahooquery
-from typing import Literal
-import re
-class YFinanceAnalyzer:
+from src.abstractions import FDataAbc
+
+
+class YFinanceAnalyzer(FDataAbc):
     """
     A class to retrieve financial metrics for a given ticker using yfinance.
     Each metric is exposed through its own method for clarity and flexibility.
@@ -210,8 +211,8 @@ class YFinanceAnalyzer:
 if __name__ == "__main__":
     # Example usage:
     analyzer = YFinanceAnalyzer("AAPL")
-    analyzer.get_past_fiscal_year_end_stock_price(period_end="09-30")
-    analyzer.get_past_fiscal_year_end_shares(period="5y")
+    # analyzer.get_past_fiscal_year_end_stock_price(period_end="09-30")
+    # analyzer.get_past_fiscal_year_end_shares(period="5y")
     analyzer.get_past_financial()
     print(analyzer.get_price("5d"))
     print(analyzer.get_eps(n_quarters=4))
