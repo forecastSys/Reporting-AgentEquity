@@ -100,11 +100,5 @@ class SecFilingExtractor(TextDataABC):
                 break
         return items_output
 
-if __name__ == "__main__":
-    # Example usage:
-    cik = "AAPL"  # or full CIK like "0000320193"
-    year = 2025
-    form = "10-K"
-
-    filings = fetch_sec_filings_text(cik, form)
-    print(filings)
+    def fetch_from_db(self, ticker: str, form_type: str = "10-K"):
+        pass

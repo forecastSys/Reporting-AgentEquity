@@ -5,13 +5,14 @@ from src.report.agent import (
     State,
     SUP_HUB,
     WOKER_HUB,
-    EVALUATION_HUB
+    EVALUATION_HUB,
+    AgentUtils,
+    AgentTools
 )
-from src.report.agent import AgentTools
 from src.report.llm import OPENAI_CALLER
 from src.report.decorator import AgentDecorator
 
-from typing import Dict, List, Tuple, Literal, Union, Callable
+from typing import Dict, List, Tuple, Literal, Union, Callable, Annotated, Optional
 from typing_extensions import TypedDict
 
 from langgraph.prebuilt import create_react_agent
@@ -26,14 +27,16 @@ import functools
 
 
 class ReportTeamBase(AgentTeamABC,
-                     AgentTools):
+                     AgentTools,
+                     AgentUtils):
     EXECUTIVE_DIRECTOR_NAME: str
     SECTION:                 str
     TEAM_NAME:               str
-    SUPERVISOR_NAME:         str
+    TEAM_SUPERVISOR_NAME:    str
     ASSISTANT_NAME:          str
     EVALUATOR_NAME:          str
     DATA_INPUT:              List[str]
+    ASSISTANT_INSTRU:        str
 
     def __init__(self, ticker:str, year:str, quarter:str):
         super().__init__(ticker=ticker, year=year, quarter=quarter)
@@ -42,33 +45,33 @@ class ReportTeamBase(AgentTeamABC,
         tools_list = self._get_tools()
         self.tools_used = [tools_list[i] for i in self.DATA_INPUT]
 
-    def team_supervisor_node(self, state: State):
-        ROUTE_TO = [self.ASSISTANT_NAME, self.EXECUTIVE_DIRECTOR_NAME]
-
-        class Router(TypedDict):
-            """Worker to route to next. If no workers needed, route to FINISH."""
-            next: Literal[*ROUTE_TO]
-
-        system_prompt = SUP_HUB['bso_team']['desc'].format(ed_name=self.EXECUTIVE_DIRECTOR_NAME,
-                                                           assistant_name=self.ASSISTANT_NAME)
-        messages = {
-            'messages':[{"role": "system", "content": system_prompt}]
-        }
-        supervisor_agent = create_react_agent(
-            self.openai_llm,
-            response_format=Router,
-            tools=[],
-        )
-        result = supervisor_agent.invoke(messages)
-        next_node = result["structured_response"]["next"]
-
-        return Command(
-            goto=next_node,
-            update={
-                "messages": state["messages"],
-                "next": next_node,
-            }
-        )
+    # def team_supervisor_node(self, state: State):
+    #     ROUTE_TO = [self.ASSISTANT_NAME, self.EXECUTIVE_DIRECTOR_NAME]
+    #
+    #     class Router(TypedDict):
+    #         """Worker to route to next. If no workers needed, route to FINISH."""
+    #         next: Literal[*ROUTE_TO]
+    #
+    #     system_prompt = SUP_HUB['bso_team']['desc'].format(ed_name=self.EXECUTIVE_DIRECTOR_NAME,
+    #                                                        assistant_name=self.ASSISTANT_NAME)
+    #     messages = {
+    #         'messages':[{"role": "system", "content": system_prompt}]
+    #     }
+    #     supervisor_agent = create_react_agent(
+    #         self.openai_llm,
+    #         response_format=Router,
+    #         tools=[],
+    #     )
+    #     result = supervisor_agent.invoke(messages)
+    #     next_node = result["structured_response"]["next"]
+    #
+    #     return Command(
+    #         goto=next_node,
+    #         update={
+    #             "messages": state["messages"],
+    #             "next": next_node,
+    #         }
+    #     )
 
     def evaluator_node(self, state: State):
         ROUTE_TO = [self.ASSISTANT_NAME]
@@ -83,14 +86,20 @@ class ReportTeamBase(AgentTeamABC,
 
         writer_msg = next(
             m for m in state["messages"]
-            if isinstance(m, HumanMessage) and m.name == self.ASSISTANT_NAME
+            if isinstance(m, HumanMessage) and m.name == self.ASSISTANT_NAME and m.team_name == self.TEAM_NAME
+        ).content
+
+        supervisor_msg = next(
+            m for m in state["messages"]
+            if isinstance(m, HumanMessage) and m.name == self.TEAM_SUPERVISOR_NAME and m.team_name == self.TEAM_NAME
         ).content
 
         system_prompt = EVALUATION_HUB['report_review']['desc'].format(section=self.SECTION,
                                                                        assistant_name=self.ASSISTANT_NAME,
                                                                        data_tools=self.DATA_INPUT,
-                                                                       writer_msg=writer_msg)
-
+                                                                       writer_msg=writer_msg,
+                                                                       supervisor_msg=supervisor_msg)
+        print(system_prompt)
         messages = {
             'messages':[{"role": "system", "content": system_prompt}]
         }
@@ -102,22 +111,23 @@ class ReportTeamBase(AgentTeamABC,
         result = evaluator_agent.invoke(messages)
         goto = result["structured_response"]["next"]
         feedback = result["structured_response"]["feedback"]
-        feedback = f"The {self.EVALUATOR_NAME}'s feedback is: \n\n {feedback}"
+        feedback = (f"The {self.EVALUATOR_NAME}'s feedback is: \n\n<START>\n{feedback}\n<END>"
+                    + f"\n\n For your previous written section: \n\n<START>\n{writer_msg}\n<END>"
+                    + " \n\n **Please refine your written section base on the feedback.**")
 
         return Command(
             goto=goto,
             update={
                 "next": goto,
                 "messages": [
-                    AIMessage(content=feedback, name=self.EVALUATOR_NAME),
-                    HumanMessage(content=writer_msg, name=self.ASSISTANT_NAME),
+                    AIMessage(content=feedback, name=self.EVALUATOR_NAME, team_name=self.TEAM_NAME)
                 ]
             }
         )
 
     def writer_node(self, state: State):
 
-        ROUTE_TO = [self.EVALUATOR_NAME, self.SUPERVISOR_NAME]
+        ROUTE_TO = [self.EVALUATOR_NAME, self.TEAM_SUPERVISOR_NAME]
         class Router(TypedDict):
             """
             1. Worker to route to next.
@@ -127,10 +137,17 @@ class ReportTeamBase(AgentTeamABC,
             written_section: str
 
         writer_agent = create_react_agent(self.openai_llm,
-                                       response_format=Router,
-                                       tools=self.tools_used)
+                                          response_format=Router,
+                                          tools=self.tools_used)
+        last_msg_from_team = self.get_last_message_for_team(messages=state["messages"], target_team=self.TEAM_NAME)
+        msg_content = last_msg_from_team.content + "\n\n" + self.ASSISTANT_INSTRU
+        prompt = {
+            "messages": [
+                {"role": "system", "content": msg_content}
+            ]
+        }
 
-        result = writer_agent.invoke(state)
+        result = writer_agent.invoke(prompt)
         written_section = result["structured_response"]["written_section"]
 
         # check if evaluator has already run
@@ -138,12 +155,13 @@ class ReportTeamBase(AgentTeamABC,
             isinstance(m, AIMessage) and m.name == self.EVALUATOR_NAME
             for m in state["messages"]
         )
-        goto = self.SUPERVISOR_NAME if ran_eval else self.EVALUATOR_NAME
+        goto = self.TEAM_SUPERVISOR_NAME if ran_eval else self.EVALUATOR_NAME
 
         return Command(
             update={
+                "next": goto,
                 "messages": [
-                    HumanMessage(content=written_section, name=self.ASSISTANT_NAME)
+                    HumanMessage(content=written_section, name=self.ASSISTANT_NAME, team_name=self.TEAM_NAME)
                 ]
             },
             goto=goto,
@@ -151,23 +169,25 @@ class ReportTeamBase(AgentTeamABC,
 
 @AgentDecorator.inject_literal_annotations
 class BSOTeam(ReportTeamBase):
-    EXECUTIVE_DIRECTOR_NAME = SUP_HUB['company']['name']
+    EXECUTIVE_DIRECTOR_NAME = SUP_HUB['company']['name'] + '_BSO'
     SECTION                 = SUP_HUB['bso_team']['section']
-    SUPERVISOR_NAME         = SUP_HUB['bso_team']['supervisor_name']
+    TEAM_SUPERVISOR_NAME    = SUP_HUB['bso_team']['supervisor_name']
     TEAM_NAME               = SUP_HUB['bso_team']['team_name']
     ASSISTANT_NAME          = SUP_HUB['bso_team']['assistant_name']
     EVALUATOR_NAME          = SUP_HUB['bso_team']['evaluator_name']
     DATA_INPUT              = SUP_HUB['bso_team']['data_tools']
+    ASSISTANT_INSTRU        = SUP_HUB['bso_team']['assistant_instruction']
 
 @AgentDecorator.inject_literal_annotations
 class FVPDTeam(ReportTeamBase):
-    EXECUTIVE_DIRECTOR_NAME = SUP_HUB['company']['name']
+    EXECUTIVE_DIRECTOR_NAME = SUP_HUB['company']['name'] + '_FVPD'
     SECTION                 = SUP_HUB['fvpd_team']['section']
-    SUPERVISOR_NAME         = SUP_HUB['fvpd_team']['supervisor_name']
+    TEAM_SUPERVISOR_NAME    = SUP_HUB['fvpd_team']['supervisor_name']
     TEAM_NAME               = SUP_HUB['fvpd_team']['team_name']
     ASSISTANT_NAME          = SUP_HUB['fvpd_team']['assistant_name']
     EVALUATOR_NAME          = SUP_HUB['fvpd_team']['evaluator_name']
     DATA_INPUT              = SUP_HUB['fvpd_team']['data_tools']
+    ASSISTANT_INSTRU        = SUP_HUB['fvpd_team']['assistant_instruction']
 
 # class BSOTeam(AgentTeamABC,
 #               AgentTools):

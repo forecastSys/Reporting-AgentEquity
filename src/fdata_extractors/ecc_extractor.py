@@ -1,5 +1,6 @@
-from src.config.config import FMP_API_KEY
+from src.config.config import FMP_API_KEY, ECC_COLLECTION
 from src.abstractions import TextDataABC
+from src.database import MongoDBHandler
 from dotenv import load_dotenv
 import requests
 
@@ -21,6 +22,7 @@ class FMPTranscriptFetcher(TextDataABC):
             api_key (str): Your FinancialModelingPrep API key.
         """
         self.api_key = FMP_API_KEY
+        self.col = MongoDBHandler().get_collection(ECC_COLLECTION)
 
     def fetch(self, ticker: str, year: int, quarter: int) -> dict:
         """
@@ -44,9 +46,12 @@ class FMPTranscriptFetcher(TextDataABC):
         response.raise_for_status()
         return response.json()[0]
 
+    def fetch_from_db(self, ticker: str, year: int, quarter: int) -> dict:
 
-if __name__ == "__main__":
-    # Example usage
-    fetcher = FMPTranscriptFetcher()
-    transcript = fetcher.fetch("AAPL", 2025, 1)
-    print(transcript)
+        response = self.col.find(
+            {'symbol': ticker,
+             'year': year,
+             'quarter': quarter}
+        )
+        response = [i for i in response][0]
+        return response

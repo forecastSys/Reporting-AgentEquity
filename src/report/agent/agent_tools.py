@@ -32,10 +32,12 @@ class AgentToolsHelper:
         self.yfinance = YFinanceAnalyzer(self.ticker)
         self.fmp = FMPTranscriptFetcher()
         # latest_filing = SecFilingExtractor().fetch(ticker=ticker)
-
-        file_path = self.FDATA_DIR / '10K_Items_AAPL.json'
-        with open(file_path, 'r', encoding='cp1252') as f:
-            latest_filing = json.load(f)
+        try:
+            file_path = self.FDATA_DIR / f'10K_Items_{self.ticker}.json'
+            with open(file_path, 'r', encoding='cp1252') as f:
+                latest_filing = json.load(f)
+        except FileNotFoundError:
+            latest_filing = SecFilingExtractor().fetch(ticker=ticker)
 
         self.latest_filing_item1 = latest_filing['item1']
         self.latest_filing_item1a = latest_filing['item1a']
@@ -49,7 +51,9 @@ class AgentToolsHelper:
 
     def _get_latest_ecc(self) -> str:
         """Get latest earning conference call transcripts for the ticker."""
-        return self.fmp.fetch(ticker=self.ticker, year=self.year, quarter=self.quarter)['content']
+        # ecc_content = self.fmp.fetch(ticker=self.ticker, year=self.year, quarter=self.quarter)['content']
+        ecc_content = self.fmp.fetch_from_db(ticker=self.ticker, year=self.year, quarter=self.quarter)['content']
+        return ecc_content
 
     def _get_latest_filing_item1(self) -> str:
         """Get latest sec filing 10K item1 for the ticker. item1 is about Business Description"""

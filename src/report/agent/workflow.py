@@ -21,7 +21,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
 from langgraph_supervisor import create_supervisor
 
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Annotated
 from typing_extensions import TypedDict
 from langchain_core.language_models.chat_models import BaseChatModel
 
@@ -35,8 +35,6 @@ import io
 from IPython.display import Image, display
 
 class AgentWorkflow:
-
-    EXECUTIVE_DIRECTOR_NAME: str = SUP_HUB['company']['name']
 
     def __init__(self,
                  ticker,
@@ -56,12 +54,14 @@ class AgentWorkflow:
         self.bso_team = BSOTeam(ticker=ticker, year=year, quarter=quarter)
         self.fvpd_team = FVPDTeam(ticker=ticker, year=year, quarter=quarter)
 
-
-    def make_supervisor_node(self, assistants: List[str]) -> str:
+    def make_supervisor_node(self,
+                             assistants: List[str],
+                             team_desc: str,
+                             TEAM_SUPERVISOR_NAME: str,
+                             TEAM_NAME: str) -> str:
 
         ROUTE_TO = assistants + ["__end__"]
         options = ["FINISH"] + assistants
-
         class Router(TypedDict):
             """Worker to route to next. If no workers needed, route to FINISH."""
             next: Literal[*options]
@@ -69,7 +69,7 @@ class AgentWorkflow:
 
         def supervisor_node(state: State) -> Command[Literal[*ROUTE_TO]]:
 
-            system_prompt = SUP_HUB['company']['desc'].format(team_assistants=assistants)
+            system_prompt = team_desc.format(team_assistants=assistants)
             """An LLM-based router."""
             messages = [
                            {"role": "system", "content": system_prompt},
@@ -80,94 +80,123 @@ class AgentWorkflow:
             if goto == "FINISH":
                 goto = END
 
-            return Command(goto=goto, update={"next": goto,
-                                              "messages": [HumanMessage(content=plan, name=self.EXECUTIVE_DIRECTOR_NAME)]})
+            return Command(goto=goto,
+                           update={
+                               "next": goto,
+                               "messages": [HumanMessage(content=plan, name=TEAM_SUPERVISOR_NAME, team_name=TEAM_NAME)]
+                           })
 
         return supervisor_node
 
-    def create_bso_team(self) -> StateGraph:
-        assistants = [self.bso_team.SUPERVISOR_NAME, self.bso_team.ASSISTANT_NAME]
-        ed_node = self.make_supervisor_node(assistants=assistants)
+    def create_bso_team(self, company_builder) -> StateGraph:
 
-        bso_team_builder = StateGraph(State)
-        bso_team_builder.add_node(self.EXECUTIVE_DIRECTOR_NAME, ed_node)
-        bso_team_builder.add_node(self.bso_team.SUPERVISOR_NAME, self.bso_team.team_supervisor_node)
-        bso_team_builder.add_node(self.bso_team.ASSISTANT_NAME, self.bso_team.writer_node)
-        bso_team_builder.add_node(self.bso_team.EVALUATOR_NAME, self.bso_team.evaluator_node)
+        team = self.bso_team
+        team_desc = SUP_HUB['bso_team']['desc']
+        assistants = [team.ASSISTANT_NAME]
+        ed_node = self.make_supervisor_node(assistants=assistants,
+                                            team_desc=team_desc,
+                                            TEAM_SUPERVISOR_NAME=team.TEAM_SUPERVISOR_NAME,
+                                            TEAM_NAME=team.TEAM_NAME)
 
-        bso_team_builder.add_edge(START, self.EXECUTIVE_DIRECTOR_NAME)
-        bso_team_builder.add_edge(self.EXECUTIVE_DIRECTOR_NAME, self.bso_team.SUPERVISOR_NAME)
-        bso_team_builder.add_edge(self.bso_team.SUPERVISOR_NAME, self.bso_team.ASSISTANT_NAME)
-        bso_team_builder.add_edge(self.bso_team.ASSISTANT_NAME, self.bso_team.EVALUATOR_NAME)
-        bso_team_builder.add_edge(self.bso_team.EVALUATOR_NAME, self.EXECUTIVE_DIRECTOR_NAME)
+        # bso_team_builder = StateGraph(State)
+        company_builder.add_node(team.TEAM_SUPERVISOR_NAME, ed_node)
+        # company_builder.add_node(team.SUPERVISOR_NAME, team.team_supervisor_node)
+        company_builder.add_node(team.ASSISTANT_NAME, team.writer_node)
+        company_builder.add_node(team.EVALUATOR_NAME, team.evaluator_node)
 
+        company_builder.add_edge(START, team.TEAM_SUPERVISOR_NAME)
+        # company_builder.add_edge(team.EXECUTIVE_DIRECTOR_NAME, team.ASSISTANT_NAME)
+        # company_builder.add_edge(team.ASSISTANT_NAME, team.EVALUATOR_NAME)
+        # company_builder.add_edge(team.EVALUATOR_NAME, team.ASSISTANT_NAME)
+        # company_builder.add_edge(team.ASSISTANT_NAME, team.EXECUTIVE_DIRECTOR_NAME)
+        # company_builder.add_edge(team.EXECUTIVE_DIRECTOR_NAME, END)
+        # company_builder.add_edge(team.SUPERVISOR_NAME, self.EXECUTIVE_DIRECTOR_NAME)
+        # bso_team_graph = bso_team_builder.compile().with_config({"callbacks": [self.langfuse_handler]})
 
-        bso_team_graph = bso_team_builder.compile().with_config({"callbacks": [self.langfuse_handler]})
+        return company_builder
 
-        return bso_team_graph
+    def create_fvpd_team(self, company_builder) -> StateGraph:
 
-    def create_fvpd_team(self) -> StateGraph:
-        assistants = [self.fvpd_team.SUPERVISOR_NAME, self.fvpd_team.ASSISTANT_NAME]
-        ed_node = self.make_supervisor_node(assistants=assistants)
+        team = self.fvpd_team
+        team_desc = SUP_HUB['fvpd_team']['desc']
+        assistants = [team.ASSISTANT_NAME]
+        ed_node = self.make_supervisor_node(assistants=assistants,
+                                            team_desc=team_desc,
+                                            TEAM_SUPERVISOR_NAME=team.TEAM_SUPERVISOR_NAME,
+                                            TEAM_NAME=team.TEAM_NAME)
+        # company_builder.add_node(team.ASSISTANT_NAME, team.writer_node)
+        # company_builder.add_node(team.EVALUATOR_NAME, team.evaluator_node)
+        company_builder.add_node(team.TEAM_SUPERVISOR_NAME, ed_node)
+        company_builder.add_node(team.ASSISTANT_NAME, team.writer_node)
+        company_builder.add_node(team.EVALUATOR_NAME, team.evaluator_node)
 
-        fvpd_team_builder = StateGraph(State)
-        fvpd_team_builder.add_node(self.EXECUTIVE_DIRECTOR_NAME, ed_node)
-        fvpd_team_builder.add_node(self.fvpd_team.SUPERVISOR_NAME, self.fvpd_team.team_supervisor_node)
-        fvpd_team_builder.add_node(self.fvpd_team.ASSISTANT_NAME, self.fvpd_team.writer_node)
-        fvpd_team_builder.add_node(self.fvpd_team.EVALUATOR_NAME, self.fvpd_team.evaluator_node)
-        fvpd_team_builder.add_edge(START, self.fvpd_team.SUPERVISOR_NAME)
-        fvpd_team_graph = fvpd_team_builder.compile().with_config({"callbacks": [self.langfuse_handler]})
+        company_builder.add_edge(START, team.TEAM_SUPERVISOR_NAME)
+        # company_builder.add_edge(team.EXECUTIVE_DIRECTOR_NAME, team.ASSISTANT_NAME)
+        # company_builder.add_edge(team.ASSISTANT_NAME, team.EVALUATOR_NAME)
+        # company_builder.add_edge(team.EVALUATOR_NAME, team.ASSISTANT_NAME)
+        # company_builder.add_edge(team.ASSISTANT_NAME, team.EXECUTIVE_DIRECTOR_NAME)
+        # company_builder.add_edge(team.EXECUTIVE_DIRECTOR_NAME, END)
+        # company_builder.add_edge(team.SUPERVISOR_NAME, self.EXECUTIVE_DIRECTOR_NAME)
+        # bso_team_graph = bso_team_builder.compile().with_config({"callbacks": [self.langfuse_handler]})
 
-        return fvpd_team_graph
+        return company_builder
 
-    def call_bso_team(self, state: State) -> Command[Literal[EXECUTIVE_DIRECTOR_NAME]]:
-        team_graph = self.create_bso_team()
-        response = team_graph.invoke({"messages": state["messages"][-1]})
-
-        return Command(
-            update={
-                "messages": [
-                    HumanMessage(
-                        content=response["messages"][-1].content, name=self.bso_team.TEAM_NAME
-                    )
-                ]
-            },
-            goto=self.EXECUTIVE_DIRECTOR_NAME,
-        )
-    def call_fvpd_team(self, state: State) -> Command[Literal[EXECUTIVE_DIRECTOR_NAME]]:
-        team_graph = self.create_fvpd_team()
-        response = team_graph.invoke({"messages": state["messages"][-1]})
-
-        return Command(
-            update={
-                "messages": [
-                    HumanMessage(
-                        content=response["messages"][-1].content, name=self.fvpd_team.TEAM_NAME
-                    )
-                ]
-            },
-            goto=self.EXECUTIVE_DIRECTOR_NAME,
-        )
+    # def call_bso_team(self, state: State) -> Command[Literal[EXECUTIVE_DIRECTOR_NAME]]:
+    #     team_graph = self.create_bso_team()
+    #     response = team_graph.invoke({"messages": state["messages"][-1]})
+    #
+    #     return Command(
+    #         update={
+    #             "messages": [
+    #                 HumanMessage(
+    #                     content=response["messages"][-1].content, name=team.TEAM_NAME
+    #                 )
+    #             ]
+    #         },
+    #         goto=self.EXECUTIVE_DIRECTOR_NAME,
+    #     )
+    # def call_fvpd_team(self, state: State) -> Command[Literal[EXECUTIVE_DIRECTOR_NAME]]:
+    #     team_graph = self.create_fvpd_team()
+    #     response = team_graph.invoke({"messages": state["messages"][-1]})
+    #
+    #     return Command(
+    #         update={
+    #             "messages": [
+    #                 HumanMessage(
+    #                     content=response["messages"][-1].content, name=team.TEAM_NAME
+    #                 )
+    #             ]
+    #         },
+    #         goto=self.EXECUTIVE_DIRECTOR_NAME,
+    #     )
 
     def run(self):
 
-        assistant_teams = [self.bso_team.TEAM_NAME, self.fvpd_team.TEAM_NAME]
-        company_supervisor_node = self.make_supervisor_node(assistants=assistant_teams)
+        # assistant_teams = [team.ASSISTANT_NAME, team.ASSISTANT_NAME]
+        # company_supervisor_node = self.make_supervisor_node(assistants=assistant_teams)
 
-        super_builder = StateGraph(State)
-        super_builder.add_node(self.EXECUTIVE_DIRECTOR_NAME, company_supervisor_node)
-        super_builder.add_node(self.bso_team.TEAM_NAME, self.call_bso_team)
-        super_builder.add_node(self.fvpd_team.TEAM_NAME, self.call_fvpd_team)
-        super_builder.add_edge(START, self.EXECUTIVE_DIRECTOR_NAME)
-        super_graph = super_builder.compile()
+        company_builder = StateGraph(State)
+        # company_builder.add_node(self.EXECUTIVE_DIRECTOR_NAME, company_supervisor_node)
+        # company_builder.add_edge(START, self.EXECUTIVE_DIRECTOR_NAME)
+        company_builder = self.create_bso_team(company_builder)
+        company_builder = self.create_fvpd_team(company_builder)
+        company_graph = company_builder.compile(cache=None)
+
+
+
+        # super_builder.add_node(team.TEAM_NAME, self.call_bso_team)
+        # super_builder.add_node(team.TEAM_NAME, self.call_fvpd_team)
+
+        # super_builder.add_edge(START, self.EXECUTIVE_DIRECTOR_NAME)
+        # super_graph = super_builder.compile()
 
 
         ## Drawing Images
-        buf = super_graph.get_graph().draw_mermaid_png()
+        buf = company_graph.get_graph().draw_mermaid_png()
         img = PILImage.open(io.BytesIO(buf))
         img.show()
 
-        for s in super_graph.stream(
+        for s in company_graph.stream(
                 {"messages": [("user", f"Please write me an Investment report for {self.ticker} for year {self.year}")]},
                 config={"recursion_limit": 100, "callbacks": [self.langfuse_handler]}
         ):
