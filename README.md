@@ -1,28 +1,47 @@
-# Reporting-AgentEquity
-**AI-powered agent system for generating automated equity research reports**
+# 📈 Reporting-AgentEquity  
+**AI-powered multi-agent system for automated equity research reports**
 
-This repo provides an AI agent-based system for generating automated equity research reports by combining financial data pipelines, intelligent prompt engineering, and large language models (LLMs). It enables scalable, data-driven report writing for public companies—automating the traditionally manual process of financial analysis and commentary.
+`Reporting-AgentEquity` is a scalable, intelligent system that automates the generation of professional equity research reports. It integrates structured financial data pipelines, agent-based workflows using [LangGraph](https://github.com/langchain-ai/langgraph), and prompt-driven large language models (LLMs) to produce consistent, high-quality financial analysis.
+
+---
 
 ## 🧠 Overview
 
-`Reporting-AgentEquity` is an intelligent agent-based framework designed to streamline and automate the generation of equity research reports. Leveraging large language models (LLMs), financial data pipelines, and report generation workflows, it enables scalable, consistent, and customizable financial analysis at speed.
+This project uses a **multi-agent architecture** to simulate an equity research team—automating roles such as analysts, evaluators, and supervisors. Each agent is orchestrated using **LangGraph** for modular, stateful workflows and tracked with **Langfuse** for full observability.
+
+The system enables end-to-end automation from raw financial data to final investment reports in Markdown, PDF, or HTML formats.
+
+---
 
 ## ✨ Key Features
 
-- 🤖 **LLM-driven agent architecture** for contextual equity report writing
-- 📊 **Integration with structured financial data** (e.g., fundamentals, forecasts)
-- 🏗️ **Modular pipeline**: data ingestion → feature extraction → report generation
-- 📄 **Customizable report templates** (Markdown, PDF, HTML)
-- 🔍 **Pluggable model backends** (e.g., OpenAI, local LLMs)
-- ⏱️ **Scheduled report generation** with Airflow or CLI
+- 🤖 **Agent-based LLM orchestration with LangGraph**
+- 📊 **Structured financial data integration** (MySQL, CSV, APIs)
+- 🧠 **Context-aware prompting per report section**
+- 🕵️‍♀️ **Evaluator and supervisor roles** for fact-checking and compliance
+- 📄 **Multi-format report output** (Markdown, PDF, HTML)
+- 📈 **Prompt tracking and analytics with Langfuse**
+- 🔌 **Pluggable LLM support** (OpenAI, local models, API backends)
+- 
+---
 
 ## 🏗️ Architecture
 
-```mermaid
---> A [Data Source (e.g. MySQL, CSV, API)] 
---> B [Financial Data Preprocessing]
---> C [Feature Extraction & Forecasting]
---> D [LLM Agent (Prompt + Context)]
---> E [Equity Report Draft]
---> F [Output Formats: Markdown / PDF / HTML]
-```
+```plaintext
+[Data Source (MySQL, CSV, API)]
+        ↓
+[Financial Data Preprocessing]
+        ↓
+[Forecasting / Feature Engineering]
+        ↓
+[LangGraph Agent Teams]
+    ├── Business Strategy & Outlook Team
+    ├── Fair Value & Profit Drivers Team
+    ├── Risk & Uncertainty Team
+    └── etc.,
+        ↓
+[Assitant & Evaluator & Supervisor Agents]
+        ↓
+[Final Investment Report Compilation]
+        ↓
+[Output: Markdown / PDF / HTML]
