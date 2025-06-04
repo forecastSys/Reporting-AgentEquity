@@ -1,0 +1,91 @@
+class ReportTeamFactory:
+    @staticmethod
+    def create(team_key: str, ticker: str, year: str, quarter: str) -> ReportTeamBase:
+        config = SUP_HUB[team_key]
+        return ReportTeamBaseDynamic(
+            ticker=ticker,
+            year=year,
+            quarter=quarter,
+            team_key=team_key,
+            section=config['section'],
+            team_name=config['team_name'],
+            supervisor_name=config['supervisor_name'],
+            assistant_name=config['assistant_name'],
+            evaluator_name=config['evaluator_name'],
+            team_desc=config['desc'],
+            assistant_instruction=config['assistant_instruction'],
+            data_tools=config['data_tools'],
+            prompt_description=config['prompt_description'],
+            prompt_tools_str=config['prompt_tools_str'],
+            prompt_deliverable=config['prompt_deliverable']
+        )
+
+class ReportTeamBaseDynamic(ReportTeamBase):
+    def __init__(self,
+                 ticker: str,
+                 year: str,
+                 quarter: str,
+                 team_key: str,
+                 section: str,
+                 team_name: str,
+                 supervisor_name: str,
+                 assistant_name: str,
+                 evaluator_name: str,
+                 team_desc: str,
+                 assistant_instruction: str,
+                 data_tools: List[str],
+                 prompt_description: str,
+                 prompt_tools_str: str,
+                 prompt_deliverable: str):
+
+        self.TEAM = team_key
+        self.SECTION = section
+        self.TEAM_NAME = team_name
+        self.TEAM_SUPERVISOR_NAME = supervisor_name
+        self.ASSISTANT_NAME = assistant_name
+        self.EVALUATOR_NAME = evaluator_name
+        self.TEAM_DESC = team_desc
+        self.ASSISTANT_INSTRU = assistant_instruction
+        self.DATA_TOOLS = data_tools
+        self.PROMPT_DESCRIPTION = prompt_description
+        self.PROMPT_TOOLS_STR = prompt_tools_str
+        self.PROMPT_DELIVERABLE = prompt_deliverable
+
+        super().__init__(ticker=ticker, year=year, quarter=quarter)
+
+class AgentWorkflow:
+
+    def __init__(self, ticker, year, quarter):
+        self.ticker = ticker
+        self.year = year
+        self.quarter = quarter
+        self.openai_llm = OPENAI_CALLER()._get_llm(model='gpt-4.1')
+        self.langfuse_handler = CallbackHandler(secret_key=LANGFUSE_PRIVATE_KEY,
+                                                public_key=LANGFUSE_PUBLIC_KEY,
+                                                host=LANGFUSE_HOST)
+        self.teams: Dict[str, ReportTeamBase] = {
+            team_key: ReportTeamFactory.create(team_key, ticker, year, quarter)
+            for team_key in SUP_HUB.keys()
+        }
+
+    def create_team(self, builder: StateGraph, team: ReportTeamBase):
+        builder.add_node(team.TEAM_SUPERVISOR_NAME, team.team_supervisor_node)
+        builder.add_node(team.ASSISTANT_NAME, team.writer_node)
+        builder.add_node(team.EVALUATOR_NAME, team.evaluator_node)
+        builder.add_edge(START, team.TEAM_SUPERVISOR_NAME)
+        return builder
+
+    def run(self):
+        builder = StateGraph(State)
+        for team in self.teams.values():
+            builder = self.create_team(builder, team)
+
+        company_graph = builder.compile(cache=None)
+        buf = company_graph.get_graph().draw_mermaid_png()
+        PILImage.open(io.BytesIO(buf)).show()
+
+        for s in company_graph.stream(
+                {"messages": [("user", f"Please write me an Investment report for {self.ticker} for year {self.year}")]},
+                config={"recursion_limit": 100, "callbacks": [self.langfuse_handler]}):
+            print(s)
+            print("---")
