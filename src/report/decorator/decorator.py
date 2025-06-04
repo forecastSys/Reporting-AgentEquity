@@ -7,16 +7,16 @@ class AgentDecorator:
     @staticmethod
     def inject_literal_annotations(cls):
 
-        # # 1) team_supervisor_node():
-        # orig_sup = cls.team_supervisor_node
-        #
-        # @functools.wraps(orig_sup)
-        # def team_supervisor_node(self, state):
-        #     return orig_eval(self, state)
-        #
-        # team_supervisor_node.__annotations__ = orig_sup.__annotations__.copy()
-        # team_supervisor_node.__annotations__['return'] = Command[Literal[cls.ASSISTANT_NAME, cls.EXECUTIVE_DIRECTOR_NAME]]
-        # cls.team_supervisor_node = team_supervisor_node
+        # 1) team_supervisor_node():
+        orig_sup = cls.team_supervisor_node
+
+        @functools.wraps(orig_sup)
+        def team_supervisor_node(self, state):
+            return orig_sup(self, state)
+
+        team_supervisor_node.__annotations__ = orig_sup.__annotations__.copy()
+        team_supervisor_node.__annotations__['return'] = Command[Literal[cls.ASSISTANT_NAME, "__end__"]]
+        cls.team_supervisor_node = team_supervisor_node
 
 
         # 2) evaluator_node():
