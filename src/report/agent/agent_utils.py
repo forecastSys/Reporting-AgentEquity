@@ -31,5 +31,5 @@ class AgentUtils:
                 if isinstance(m, HumanMessage) and m.name == name and m.team_name == team_name
             ).content
         except StopIteration:
-            raise ValueError(f"{caller_name}: Missing message from {label} ('{name}' in team '{team_name}')")
+            raise ValueError(f"[{caller_name}]: Missing message from {label} ('{name}' in team '{team_name}')")
 

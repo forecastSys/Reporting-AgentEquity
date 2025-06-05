@@ -15,7 +15,10 @@ class AgentsHubBuilder:
                 return all(word.istitle() for word in phrase.split() if word.isalpha())
 
             if not _is_title_case(phrase):
-                raise ValueError("Each word must start with a capital letter. Your section name is: {}".format(phrase))
+                raise ValueError(
+                    f"[{AgentsHubBuilder.__name__}.build_sup_hub._get_acronym] Invalid section name: '{phrase}'. "
+                    "Each word must start with a capital letter (e.g., 'Fair Value', 'Business Strategy')."
+                )
 
             return ''.join(word[0] for word in phrase.split() if word[0].isupper())
 

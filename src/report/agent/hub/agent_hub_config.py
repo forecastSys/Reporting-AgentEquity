@@ -11,6 +11,16 @@ AVAILABLE_TOOLS:
 
 """
 
+# 4. **Valuation**
+#    – Description: Perform multiple valuation approaches (DCF, comparables, precedent transactions) and reconcile them.
+#    – Inputs: Discount rates, peer multiples, transaction comps, sensitivity ranges.
+#    – Deliverable: Valuation summary table, sensitivity charts, and clear rationale for the chosen target price.
+#
+# 5. **Investment Thesis**
+#    – Description: Synthesize insights into a concise buy/sell/hold recommendation, including catalysts and potential pitfalls.
+#    – Inputs: Key findings from sections 1–4, proxy investor profiles, time horizon.
+#    – Deliverable: A 2-paragraph thesis statement, with bullet-pointed catalysts and triggers for reassessment.
+
 SECTIONS = {
     'bso':SectionConfig(
         section_name='Business Strategy & Outlook',
@@ -30,6 +40,22 @@ SECTIONS = {
     ),
     'ru': SectionConfig(
         section_name='Risk & Uncertainty',
+        tools=['Latest_SEC_Filing_10K_item1a'],
+        section_description=SectionDescription(
+            section_specific_desc="The plan should focus on identify and quantify major risks (execution, macro, regulatory, ESG, etc.,) and assign severity.",
+            section_deliverable="1-2-paragraph narrative identifying the top 3 prioritized risks and uncertainties."
+        )
+    ),
+    'v': SectionConfig(
+        section_name='Valuation',
+        tools=['Stock_Price_Movement'],
+        section_description=SectionDescription(
+            section_specific_desc="The plan should focus on identify and quantify major risks (execution, macro, regulatory, ESG, etc.,) and assign severity.",
+            section_deliverable="1-2-paragraph narrative identifying the top 3 prioritized risks and uncertainties."
+        )
+    ),
+    'it': SectionConfig(
+        section_name='Investment Thesis',
         tools=['Latest_SEC_Filing_10K_item1a'],
         section_description=SectionDescription(
             section_specific_desc="The plan should focus on identify and quantify major risks (execution, macro, regulatory, ESG, etc.,) and assign severity.",
