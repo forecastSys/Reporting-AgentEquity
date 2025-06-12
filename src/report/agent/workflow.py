@@ -15,6 +15,8 @@ from src.report.agent import (
     BSOTeam,
     FVPDTeam,
     RUTeam,
+    CATeam,
+    BDTeam,
     ReportTeamBase
 )
 
@@ -35,6 +37,7 @@ from langfuse.callback import CallbackHandler
 from PIL import Image as PILImage
 import io
 from IPython.display import Image, display
+import json
 
 class AgentWorkflow:
 
@@ -46,7 +49,7 @@ class AgentWorkflow:
         self.year = year
         self.quarter = quarter
 
-        self.openai_llm = OPENAI_CALLER()._get_llm(model='gpt-4.1')
+        self.openai_llm = OPENAI_CALLER()._get_llm(model='gpt-4o')
         self.langfuse_handler = CallbackHandler(secret_key=LANGFUSE_PRIVATE_KEY,
                                                 public_key=LANGFUSE_PUBLIC_KEY,
                                                 host=LANGFUSE_HOST
@@ -56,7 +59,9 @@ class AgentWorkflow:
         self.bso_team = BSOTeam(ticker=ticker, year=year, quarter=quarter)
         self.fvpd_team = FVPDTeam(ticker=ticker, year=year, quarter=quarter)
         self.ru_team = RUTeam(ticker=ticker, year=year, quarter=quarter)
-        self.company = [self.bso_team, self.fvpd_team, self.ru_team]
+        self.bd_team = BDTeam(ticker=ticker, year=year, quarter=quarter)
+        self.ca_team = CATeam(ticker=ticker, year=year, quarter=quarter)
+        self.company = [self.bso_team] #self.fvpd_team, self.ru_team, self.bd_team, self.ca_team]
 
     def create_team(self, builder: StateGraph, team: ReportTeamBase):
 
@@ -77,15 +82,36 @@ class AgentWorkflow:
         buf = company_graph.get_graph().draw_mermaid_png()
         img = PILImage.open(io.BytesIO(buf))
         img.show()
-
+        team_msg = []
         for s in company_graph.stream(
                 {"messages": [("user", f"Please write me an Investment report for {self.ticker} for year {self.year}")]},
                 config={"recursion_limit": 100, "callbacks": [self.langfuse_handler]}
         ):
+            team_msg.append(s)
             print(s)
             print("---")
 
+        def group_messages_by_team(entries):
+            grouped = {}
+            for entry in entries:
+                for _, content in entry.items():
+                    team = content.get('team_name', 'Unknown_Team')
+                    msgs = content.get('messages', [])
+                    serialized = []
+                    for m in msgs:
+                        if hasattr(m, 'content'):
+                            serialized.append(m.content)
+                        else:
+                            serialized.append(str(m))
+                    grouped.setdefault(team, []).extend(serialized)
+            return grouped
+        grouped_messages = group_messages_by_team(team_msg)
+        file_path = r'D:\MyGithub\Reporting-AgentEquity\data\reports\test1.json'
+        with open(file_path, 'w') as f:
+            json.dump(grouped_messages, f, indent=2, ensure_ascii=False)
+
+        print(group_messages_by_team(team_msg))
 
 if __name__ == '__main__':
-    agent = AgentWorkflow('AAPL', 2025, 1)
+    agent = AgentWorkflow('NVDA', 2025, 1)
     agent.run()

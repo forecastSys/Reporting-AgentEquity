@@ -13,3 +13,8 @@ LANGFUSE_HOST = os.getenv("LANGFUSE_HOST")
 MONGODB_URI = os.getenv("MONGODB_URI")
 DB = os.getenv("DB")
 ECC_COLLECTION = os.getenv("ECC_COLLECTION")
+
+MYSQL_USERNAME = os.getenv('MYSQL_USER')
+MYSQL_PASSWORD = os.getenv('MYSQL_PASS')
+MYSQL_HOST = os.getenv('MYSQL_HOST')
+MYSQL_PORT = os.getenv('MYSQL_PORT')

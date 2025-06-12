@@ -1,6 +1,6 @@
 # from src.report.generator import InvestmentReportGenerator
 
-from src.fdata_extractors.yfinance_extractors.findata_extractor import YFinanceAnalyzer
+from src.fdata_extractors.yfinance_extractors.yf_findata_extractor import YFinanceAnalyzer
 from src.report.plotter import FinancialPlotter
 from src.report.formatter import (
     ReportLabStyles,

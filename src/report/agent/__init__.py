@@ -7,5 +7,5 @@ __all__ = [
     'State',
     'BSOTeam',
     'FVPDTeam',
-    'AgentUtils'
+    'AgentTeamUtils'
 ]

@@ -8,7 +8,7 @@ import inspect
 class State(MessagesState):
     next: Annotated[str, operator.add]
 
-class AgentUtils:
+class AgentTeamUtils:
 
     @staticmethod
     def _get_last_message_for_team(messages: List, target_team: str) -> Optional[BaseMessage]:

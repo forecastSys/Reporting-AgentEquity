@@ -1,3 +1,6 @@
 from .mongodb import MongoDBHandler
-
-__all__ = ['MongoDBHandler']
+from .mysqldb import MySQLHandler
+__all__ = [
+    'MongoDBHandler',
+    'MySQLHandler'
+]

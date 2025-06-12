@@ -5,7 +5,7 @@ from src.report.agent.hub import (
 )
 from src.report.agent import (
     State,
-    AgentUtils,
+    AgentTeamUtils,
     AgentTools
 )
 from src.report.llm import OPENAI_CALLER
@@ -19,7 +19,7 @@ from langgraph.graph import StateGraph, MessagesState, START, END
 
 class ReportTeamBase(AgentTeamABC,
                      AgentTools,
-                     AgentUtils):
+                     AgentTeamUtils):
     TEAM                   : str
     EXECUTIVE_DIRECTOR_NAME: str
     SECTION:                 str
@@ -30,6 +30,11 @@ class ReportTeamBase(AgentTeamABC,
     EVALUATOR_NAME:          str
     DATA_TOOLS:              List[str]
     ASSISTANT_INSTRU:        str
+    PROMPT_DESCRIPTION:      str
+    PROMPT_TOOLS_STR:        str
+    PROMPT_DELIVERABLE:      str
+    EVALUATOR_INSTRU:        str
+    EVAL2ASSIST_INSTRU:      str
 
     def __init__(self, ticker:str, year:str, quarter:str):
         super().__init__(ticker=ticker, year=year, quarter=quarter)
@@ -47,7 +52,9 @@ class ReportTeamBase(AgentTeamABC,
             next: Literal[*options]
             plan: str
 
-        system_prompt = self.TEAM_DESC.format(team_assistants=assistants,
+        system_prompt = self.TEAM_DESC.format(year=self.year,
+                                              quarter=self.quarter,
+                                              team_assistants=assistants,
                                               sections=self.SECTION,
                                               prompt_description=self.PROMPT_DESCRIPTION,
                                               prompt_tools_str=self.PROMPT_TOOLS_STR,
@@ -84,7 +91,7 @@ class ReportTeamBase(AgentTeamABC,
         writer_msg = self._get_msg_content(state, self.ASSISTANT_NAME, self.TEAM_NAME)
         supervisor_msg = self._get_msg_content(state, self.TEAM_SUPERVISOR_NAME, self.TEAM_NAME)
 
-        system_prompt = EVALUATION_HUB.desc.format(section=self.SECTION,
+        system_prompt = self.EVALUATOR_INSTRU.format(section=self.SECTION,
                                                    assistant_name=self.ASSISTANT_NAME,
                                                    data_tools=self.tools_used,
                                                    writer_msg=writer_msg,
@@ -102,7 +109,7 @@ class ReportTeamBase(AgentTeamABC,
         feedback = result["structured_response"]["feedback"]
         feedback = (f"The {self.EVALUATOR_NAME}'s feedback is: \n\n<START>\n{feedback}\n<END>"
                     + f"\n\n For your previous written section: \n\n<START>\n{writer_msg}\n<END>"
-                    + " \n\n **Please refine your written section base on the feedback.**")
+                    + self.EVAL2ASSIST_INSTRU)
 
         return Command(
             goto=goto,
@@ -171,6 +178,8 @@ class BSOTeam(ReportTeamBase):
     PROMPT_DESCRIPTION      = SUP_HUB[TEAM].prompt_section_specific
     PROMPT_TOOLS_STR        = SUP_HUB[TEAM].prompt_section_tools
     PROMPT_DELIVERABLE      = SUP_HUB[TEAM].prompt_section_deliverable
+    EVALUATOR_INSTRU        = EVALUATION_HUB.evaluator_instruction
+    EVAL2ASSIST_INSTRU      = EVALUATION_HUB.evaluator2assistant_instruction
 
 @AgentDecorator.inject_literal_annotations
 class FVPDTeam(ReportTeamBase):
@@ -187,6 +196,8 @@ class FVPDTeam(ReportTeamBase):
     PROMPT_DESCRIPTION      = SUP_HUB[TEAM].prompt_section_specific
     PROMPT_TOOLS_STR        = SUP_HUB[TEAM].prompt_section_tools
     PROMPT_DELIVERABLE      = SUP_HUB[TEAM].prompt_section_deliverable
+    EVALUATOR_INSTRU        = EVALUATION_HUB.evaluator_instruction
+    EVAL2ASSIST_INSTRU      = EVALUATION_HUB.evaluator2assistant_instruction
 
 @AgentDecorator.inject_literal_annotations
 class RUTeam(ReportTeamBase):
@@ -203,4 +214,40 @@ class RUTeam(ReportTeamBase):
     PROMPT_DESCRIPTION      = SUP_HUB[TEAM].prompt_section_specific
     PROMPT_TOOLS_STR        = SUP_HUB[TEAM].prompt_section_tools
     PROMPT_DELIVERABLE      = SUP_HUB[TEAM].prompt_section_deliverable
+    EVALUATOR_INSTRU        = EVALUATION_HUB.evaluator_instruction
+    EVAL2ASSIST_INSTRU      = EVALUATION_HUB.evaluator2assistant_instruction
 
+@AgentDecorator.inject_literal_annotations
+class BDTeam(ReportTeamBase):
+    TEAM = 'bd_team'
+    SECTION                 = SUP_HUB[TEAM].section
+    TEAM_SUPERVISOR_NAME    = SUP_HUB[TEAM].supervisor_name
+    TEAM_NAME               = SUP_HUB[TEAM].team_name
+    TEAM_DESC               = SUP_HUB[TEAM].desc
+    ASSISTANT_NAME          = SUP_HUB[TEAM].assistant_name
+    EVALUATOR_NAME          = SUP_HUB[TEAM].evaluator_name
+    DATA_TOOLS              = SUP_HUB[TEAM].data_tools
+    ASSISTANT_INSTRU        = SUP_HUB[TEAM].assistant_instruction
+    PROMPT_DESCRIPTION      = SUP_HUB[TEAM].prompt_section_specific
+    PROMPT_TOOLS_STR        = SUP_HUB[TEAM].prompt_section_tools
+    PROMPT_DELIVERABLE      = SUP_HUB[TEAM].prompt_section_deliverable
+    EVALUATOR_INSTRU        = EVALUATION_HUB.evaluator_instruction
+    EVAL2ASSIST_INSTRU      = EVALUATION_HUB.evaluator2assistant_instruction
+
+
+@AgentDecorator.inject_literal_annotations
+class CATeam(ReportTeamBase):
+    TEAM = 'ca_team'
+    SECTION                 = SUP_HUB[TEAM].section
+    TEAM_SUPERVISOR_NAME    = SUP_HUB[TEAM].supervisor_name
+    TEAM_NAME               = SUP_HUB[TEAM].team_name
+    TEAM_DESC               = SUP_HUB[TEAM].desc
+    ASSISTANT_NAME          = SUP_HUB[TEAM].assistant_name
+    EVALUATOR_NAME          = SUP_HUB[TEAM].evaluator_name
+    DATA_TOOLS              = SUP_HUB[TEAM].data_tools
+    ASSISTANT_INSTRU        = SUP_HUB[TEAM].assistant_instruction
+    PROMPT_DESCRIPTION      = SUP_HUB[TEAM].prompt_section_specific
+    PROMPT_TOOLS_STR        = SUP_HUB[TEAM].prompt_section_tools
+    PROMPT_DELIVERABLE      = SUP_HUB[TEAM].prompt_section_deliverable
+    EVALUATOR_INSTRU        = EVALUATION_HUB.evaluator_instruction
+    EVAL2ASSIST_INSTRU      = EVALUATION_HUB.evaluator2assistant_instruction
