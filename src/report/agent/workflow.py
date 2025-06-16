@@ -1,8 +1,3 @@
-from dataclasses import field
-
-from langchain_community.agent_toolkits import SteamToolkit
-from langchain_community.utilities.clickup import Member
-
 from src.config import (
     OPENAI_API_KEY,
     LANGFUSE_PUBLIC_KEY,
@@ -11,35 +6,25 @@ from src.config import (
 )
 from src.report.agent import (
     State,
-    SUP_HUB,
     BSOTeam,
     FVPDTeam,
     RUTeam,
     CATeam,
     BDTeam,
-    ReportTeamBase
+    ReportTeamBase,
+    AgentWorkflowUtils,
+    HumanTools
 )
-
 from src.report.llm import OPENAI_CALLER
-from langchain_openai import ChatOpenAI
-from langgraph.prebuilt import create_react_agent
-from langgraph_supervisor import create_supervisor
-
-from typing import List, Optional, Literal, Annotated
-from typing_extensions import TypedDict
-from langchain_core.language_models.chat_models import BaseChatModel
-
 from langgraph.graph import StateGraph, MessagesState, START, END
-from langgraph.types import Command
-from langchain_core.messages import HumanMessage, trim_messages
 from langfuse.callback import CallbackHandler
-
 from PIL import Image as PILImage
 import io
-from IPython.display import Image, display
 import json
+import asyncio
+import time
 
-class AgentWorkflow:
+class AgentWorkflow(AgentWorkflowUtils):
 
     def __init__(self,
                  ticker,
@@ -55,13 +40,16 @@ class AgentWorkflow:
                                                 host=LANGFUSE_HOST
                                                 )
 
+        self.humantools = HumanTools(ticker, year, quarter)
+
         ## Define Agent Teams
         self.bso_team = BSOTeam(ticker=ticker, year=year, quarter=quarter)
         self.fvpd_team = FVPDTeam(ticker=ticker, year=year, quarter=quarter)
         self.ru_team = RUTeam(ticker=ticker, year=year, quarter=quarter)
         self.bd_team = BDTeam(ticker=ticker, year=year, quarter=quarter)
         self.ca_team = CATeam(ticker=ticker, year=year, quarter=quarter)
-        self.company = [self.bso_team] #self.fvpd_team, self.ru_team, self.bd_team, self.ca_team]
+        self.company = [self.bso_team, self.fvpd_team, self.ru_team, self.bd_team, self.ca_team]
+
 
     def create_team(self, builder: StateGraph, team: ReportTeamBase):
 
@@ -73,10 +61,14 @@ class AgentWorkflow:
 
     def run(self):
 
+        start = time.perf_counter()
         company_builder = StateGraph(State)
         for team in self.company:
             company_builder = self.create_team(company_builder, team)
         company_graph = company_builder.compile(cache=None)
+
+        end = time.perf_counter()
+        print(f"Elapsed: {end - start:.6f} s")
 
         ## Drawing Images
         buf = company_graph.get_graph().draw_mermaid_png()
@@ -91,27 +83,24 @@ class AgentWorkflow:
             print(s)
             print("---")
 
-        def group_messages_by_team(entries):
-            grouped = {}
-            for entry in entries:
-                for _, content in entry.items():
-                    team = content.get('team_name', 'Unknown_Team')
-                    msgs = content.get('messages', [])
-                    serialized = []
-                    for m in msgs:
-                        if hasattr(m, 'content'):
-                            serialized.append(m.content)
-                        else:
-                            serialized.append(str(m))
-                    grouped.setdefault(team, []).extend(serialized)
-            return grouped
-        grouped_messages = group_messages_by_team(team_msg)
-        file_path = r'D:\MyGithub\Reporting-AgentEquity\data\reports\test1.json'
-        with open(file_path, 'w') as f:
-            json.dump(grouped_messages, f, indent=2, ensure_ascii=False)
+        grouped_messages = self._group_messages_by_team(team_msg)
+        output_dict = {}
+        for team in self.company:
+            temp_dict = {}
+            temp_dict["section"] = self._get_last_msg_for_team(team_msg_dict=grouped_messages, team_name=team.TEAM_NAME, team_member=team.ASSISTANT_NAME).content
+            output_dict[team.TEAM_NAME] = temp_dict
 
-        print(group_messages_by_team(team_msg))
+        output_dict["comp_and_competitors_infos"] = asyncio.run(self.humantools.main())
+        # with open("output.json", "w") as outfile:
+        #     json.dump(output_dict, outfile)
+        return output_dict
+
+
 
 if __name__ == '__main__':
+    start = time.perf_counter()
     agent = AgentWorkflow('NVDA', 2025, 1)
     agent.run()
+
+    end = time.perf_counter()
+    print(f"Elapsed: {end - start:.6f} s")

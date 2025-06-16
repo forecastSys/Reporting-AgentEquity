@@ -101,3 +101,39 @@
 'selling_general_and_administration', 'gross_profit', 'cost_of_revenue',
 'total_revenue', 'operating_revenue']
 ```
+
+## Information
+```
+['address1', 'city', 'state', 'zip',
+ 'country','phone','website','industry','industryKey','industryDisp','sector',
+'sectorKey','sectorDisp','longBusinessSummary','fullTimeEmployees','companyOfficers',
+'auditRisk','boardRisk','compensationRisk','shareHolderRightsRisk','overallRisk',
+'governanceEpochDate','compensationAsOfEpochDate','irWebsite','executiveTeam',
+'maxAge','priceHint','previousClose','open','dayLow','dayHigh','regularMarketPreviousClose',
+'regularMarketOpen','regularMarketDayLow','regularMarketDayHigh','dividendRate','dividendYield',
+'exDividendDate','payoutRatio','fiveYearAvgDividendYield','beta','trailingPE','forwardPE','volume',
+'regularMarketVolume','averageVolume','averageVolume10days','averageDailyVolume10Day','bid',
+'ask','bidSize','askSize','marketCap','fiftyTwoWeekLow','fiftyTwoWeekHigh','priceToSalesTrailing12Months',
+'fiftyDayAverage','twoHundredDayAverage','trailingAnnualDividendRate','trailingAnnualDividendYield','currency',
+'tradeable','enterpriseValue','profitMargins','floatShares','sharesOutstanding','sharesShort','sharesShortPriorMonth',
+'sharesShortPreviousMonthDate','dateShortInterest','sharesPercentSharesOut','heldPercentInsiders',
+'heldPercentInstitutions','shortRatio','shortPercentOfFloat',
+'impliedSharesOutstanding','bookValue','priceToBook','lastFiscalYearEnd','nextFiscalYearEnd','mostRecentQuarter',
+'earningsQuarterlyGrowth','netIncomeToCommon','trailingEps','forwardEps','lastSplitFactor','lastSplitDate',
+'enterpriseToRevenue','enterpriseToEbitda','52WeekChange','SandP52WeekChange','lastDividendValue','lastDividendDate','quoteType',
+'currentPrice','targetHighPrice','targetLowPrice','targetMeanPrice',
+ 'targetMedianPrice','recommendationMean','recommendationKey','numberOfAnalystOpinions','totalCash',
+'totalCashPerShare','ebitda','totalDebt','quickRatio', 'currentRatio','totalRevenue','debtToEquity','revenuePerShare','returnOnAssets',
+'returnOnEquity','grossProfits','freeCashflow','operatingCashflow','earningsGrowth','revenueGrowth',
+'grossMargins','ebitdaMargins','operatingMargins','financialCurrency',
+'symbol','language','region','typeDisp','quoteSourceName','triggerable','customPriceAlertConfidence','hasPrePostMarketData',
+'firstTradeDateMilliseconds','shortName','longName','corporateActions','postMarketTime','regularMarketTime','exchange','messageBoardId',
+'exchangeTimezoneName','exchangeTimezoneShortName','gmtOffSetMilliseconds','market','esgPopulated','regularMarketChangePercent','regularMarketPrice',
+'marketState','postMarketChangePercent','postMarketPrice','postMarketChange', 'regularMarketChange','regularMarketDayRange','fullExchangeName',
+'averageDailyVolume3Month','fiftyTwoWeekLowChange','fiftyTwoWeekLowChangePercent','fiftyTwoWeekRange','fiftyTwoWeekHighChange',
+'fiftyTwoWeekHighChangePercent','fiftyTwoWeekChangePercent','dividendDate','earningsTimestamp','earningsTimestampStart','earningsTimestampEnd',
+'earningsCallTimestampStart','earningsCallTimestampEnd', 'isEarningsDateEstimate', 'epsTrailingTwelveMonths', 'epsForward', 
+'epsCurrentYear', 'priceEpsCurrentYear', 'fiftyDayAverageChange',
+ 'fiftyDayAverageChangePercent', 'twoHundredDayAverageChange', 'twoHundredDayAverageChangePercent','sourceInterval','exchangeDataDelayedBy','averageAnalystRating',
+'cryptoTradeable','displayName','trailingPegRatio']
+```

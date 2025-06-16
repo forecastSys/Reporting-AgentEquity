@@ -3,21 +3,22 @@ from textwrap import dedent
 
 """
 AVAILABLE_TOOLS:
-0. Latest_Earning_Transcripts
-1. Main_Products
-2. Yearly_Product_Revenue_Growth
-3. Latest_SEC_Filing_10K_item1
-4. Latest_SEC_Filing_10K_item1a
-5. Latest_SEC_Filing_10K_item7
-6. Stock_Price_Movement
-7. Quarterly_Current_Ratio
-8. Quarterly_Cash_Ratio
-9. Quarterly_Quick_ratio
-10. Quarterly_Total_revenue
-11. Quarterly_Total_Revenue_Growth
-12. Quarterly_Ebitda
-13. Quarterly_Ebitda_Growth
-14. Competitors_Info
+0. Estimate_Price
+1. Latest_Earning_Transcripts
+2. Main_Products
+3. Yearly_Product_Revenue_Growth
+4. Latest_SEC_Filing_10K_item1
+5. Latest_SEC_Filing_10K_item1a
+6. Latest_SEC_Filing_10K_item7
+7. Stock_Price_Movement
+8. Quarterly_Current_Ratio
+9. Quarterly_Cash_Ratio
+10. Quarterly_Quick_ratio
+11. Quarterly_Total_revenue
+12. Quarterly_Total_Revenue_Growth
+13. Quarterly_Ebitda
+14. Quarterly_Ebitda_Growth
+15. Competitors_Info
 
 """
 "The plan should focus on company’s core strategic initiatives, competitive positioning, and long-term growth drivers."
@@ -43,9 +44,16 @@ SECTIONS = {
     ),
     'fvpd': SectionConfig(
         section_name='Fair Value & Profit Drivers',
-        tools=['Stock_Price_Movement', 'Latest_Earning_Transcripts', 'Latest_SEC_Filing_10K_item7'],
+        tools=['Estimate_Price', 'Latest_Earning_Transcripts', 'Latest_SEC_Filing_10K_item7'],
         section_description=SectionDescription(
-            section_specific_desc="The plan should focus on company's Revenue Growth, Margin Expansion, Asset Efficiency, Capital Allocation and Macro & Industry Tailwinds.",
+            section_specific_desc="""The plan should focus on: 
+            1. Analyst the Estimate_Price by the model, Why is this price? how many times of the PE? etc.,
+            2. Sevaral factors:
+                - company's Revenue Growth
+                - Margin Expansion
+                - Forward Looking Estimate
+                - Macro & Industry Tailwinds.
+            """,
             section_deliverable="2-3-paragraph narrative identifying model outputs with a point-estimate fair value and a ranked list of top 3 profit drivers."
         )
     ),
@@ -67,9 +75,12 @@ SECTIONS = {
     ),
     'ca': SectionConfig(
         section_name='Capital Allocation',
-        tools=['Quarterly_Cash_Ratio'],
+        tools=['Quarterly_Cash_Ratio', 'Quarterly_Current_Ratio', 'Quarterly_Quick_ratio'],
         section_description=SectionDescription(
-            section_specific_desc="The plan should focus on identify how they company allocated its fund, and comparison of debt and cash & cash equivalent",
+            section_specific_desc="""The plan should focus on: 
+            1. identify how they company allocated its fund, 
+            2. comparison of debt and cash & cash equivalent by analyzing those ratios provided by tools
+            """,
             section_deliverable="1-2-paragraph narrative identifying company financial health"
         )
     )

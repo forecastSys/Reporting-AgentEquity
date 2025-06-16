@@ -76,7 +76,7 @@ def apply_selection_growth(data_getter_func: Callable):
         else:
             selcted_df = df[-period-1:]
 
-        growth_df = selcted_df.astype(float).pct_change()[-period:]
+        growth_df = selcted_df.astype(float).pct_change(fill_method=None)[-period:]
         growth_df.columns = [f"{col}_growth" for col in growth_df.columns]
         return growth_df
     return wrapper

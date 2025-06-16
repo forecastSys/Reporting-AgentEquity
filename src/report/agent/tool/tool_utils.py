@@ -1,16 +1,3 @@
-"""
-agent_tools.py
-- step 1: log your tool under AgentToolHelper
-    Note:
-    - Your tool shuold be as general as possible, the assumption is each tool must contain ONLY one information.
-    - For example, calling quick ratio, the tool should only return quick ratio
-- step 2: register your tool under AgentTool
-    - Here is you can register your tool as Langchain BaseTool.
-- step 3: use your tools in src.report.agent.hub.agent_hub_config.py
-"""
-
-from sqlalchemy.dialects.postgresql.pg_catalog import quote_ident
-
 from src.fdata_extractors import (
     FMPTranscriptFetcher,
     FMPAnalyzer,
@@ -27,8 +14,9 @@ from langchain_core.tools.base import ArgsSchema, BaseTool
 from pathlib import Path
 import json
 import random
+import asyncio
 
-class AgentToolsHelper:
+class ToolsHelper:
 
     P = Path(__file__).resolve()
     PROJECT_DIR = P.parents[3]
@@ -37,6 +25,7 @@ class AgentToolsHelper:
     BS_VARIABLES = ['current_liabilities', 'current_assets', 'cash_and_cash_equivalents', 'accounts_receivable'] # balance sheet
     CF_VARIABLES = ['free_cash_flow'] # cash flow
     IS_VARIABLES = ['total_revenue', 'ebitda'] # income statement
+    IS_VARIABLES = None # None means all the variables
 
     N_QUARTERS = 4 ## How many past quarter data to extract?
     N_YEARS = 3 ## How many past year data to extract?
@@ -82,7 +71,8 @@ class AgentToolsHelper:
         self.latest_filing_item7 = latest_filing['item7']
 
         ## Yfinance - Financial Data
-        self.yfinance_stock_price = yfinance.get_price()
+        self.yfinance_stock_price = yfinance.get_price(period='1y')
+        self.yfinance_info = yfinance.info
 
         self.yfinance_past_q_bs = yfinance.get_past_balance_sheet(n_quarters=self.N_QUARTERS, selected_columns=self.BS_VARIABLES)
         self.yfinance_past_q_is = yfinance.get_past_income_statement(n_quarters=self.N_QUARTERS, selected_columns=self.IS_VARIABLES)
@@ -94,6 +84,11 @@ class AgentToolsHelper:
         ## Local SQL - Competitor data
         self.competitors = sql._get_competitors(competitors_limit=3)
 
+    @staticmethod
+    def _apply_round(value: Literal[float, None]) -> Literal[float, None]:
+        if value is None:
+            return None
+        return round(value, 2)
 
     @staticmethod
     def _create_dict(df: pd.DataFrame, key: str, orient: str = 'dict'):
@@ -111,6 +106,7 @@ class AgentToolsHelper:
         estimate_price = last_cloing_price * random.uniform(0.8, 1.5)
         # df.index = pd.DatetimeIndex(df.index.date).astype(str)
         return estimate_price
+
     ## FMP ECC
     def _get_latest_ecc(self) -> str:
         """Get latest earning conference call transcripts for the ticker."""
@@ -133,7 +129,6 @@ class AgentToolsHelper:
 
 
     ## FMP Findata
-
     def _get_yearly_product_segment_growth(self) -> Dict[str, float]:
         '''Get past yearly product segment growth for the ticker.'''
         try:
@@ -158,7 +153,7 @@ class AgentToolsHelper:
         output = self._create_dict(self.yfinance_stock_price, 'Stock Price')
         return output
 
-    def _get_quarterly_current_ratio(self) -> pd.DataFrame:
+    def _get_quarterly_current_ratio(self) -> Dict[str, float]:
         """Get past quarterly current ratio for the ticker."""
         current_assets = self.yfinance_past_q_bs['current_assets']
         current_liabilities = self.yfinance_past_q_bs['current_liabilities']
@@ -166,7 +161,7 @@ class AgentToolsHelper:
         output = self._create_dict(current_ratio, 'current_ratio')
         return output
 
-    def _get_quarterly_quick_ratio(self) -> pd.DataFrame:
+    def _get_quarterly_quick_ratio(self) -> Dict[str, float]:
         """Get past quarterly quick ratio for the ticker."""
         cash = self.yfinance_past_q_bs['cash_and_cash_equivalents']
         receivables = self.yfinance_past_q_bs['accounts_receivable']
@@ -175,7 +170,7 @@ class AgentToolsHelper:
         output = self._create_dict(quick_ratio, 'quick_ratio')
         return output
 
-    def _get_quarterly_cash_ratio(self) -> pd.DataFrame:
+    def _get_quarterly_cash_ratio(self) -> Dict[str, float]:
         """Get past quarterly cash ratio for the ticker."""
         cash = self.yfinance_past_q_bs['cash_and_cash_equivalents']
         current_liabilities = self.yfinance_past_q_bs['current_liabilities']
@@ -183,29 +178,34 @@ class AgentToolsHelper:
         output = self._create_dict(cash_ratio, 'cash_ratio')
         return output
 
-    def _get_quarterly_total_revenue(self) -> pd.DataFrame:
+    def _get_quarterly_total_revenue(self) -> Dict[str, float]:
         """Get past quarterly total revenue for the ticker."""
         total_revenue = self.yfinance_past_q_is['total_revenue']
         output = self._create_dict(total_revenue, 'total_revenue')
         return output
 
-    def _get_quarterly_total_revenue_growth(self) -> pd.DataFrame:
+    def _get_quarterly_total_revenue_growth(self) -> Dict[str, float]:
         """Get past quarterly total revenue growth for the ticker."""
         total_revenue_growth = self.yfinance_past_q_is_growth['total_revenue_growth']
         output = self._create_dict(total_revenue_growth, 'total_revenue_growth')
         return output
 
-    def _get_quarterly_ebitda(self) -> pd.DataFrame:
+    def _get_quarterly_ebitda(self) -> Dict[str, float]:
         """Get past quarterly ebitda for the ticker."""
         ebitda = self.yfinance_past_q_is['ebitda']
         output = self._create_dict(ebitda, 'ebitda')
         return output
 
-    def _get_quarterly_ebitda_growth(self) -> pd.DataFrame:
+    def _get_quarterly_ebitda_growth(self) -> Dict[str, float]:
         """Get past quarterly ebitda growth for the ticker."""
         ebitda = self.yfinance_past_q_is['ebitda_growth']
         output = self._create_dict(ebitda, 'ebitda_growth')
         return output
+
+    def _get_estimate_pe(self) -> float:
+        """Get Estimated PE = estimate price / EPS for the ticker."""
+        pe = self._get_estimate_price() / self.yfinance_info['trailingEps']
+        return pe
 
     ## Local MySQL
     def _get_competitors_info(self):
@@ -214,124 +214,28 @@ class AgentToolsHelper:
                                    'competitors_info', orient='records')
         return output
 
-
-
-class AgentTools(AgentToolsHelper):
-
-    def __init__(self,
-                 ticker: str,
-                 year: int,
-                 quarter: int):
-
-        super().__init__(ticker=ticker, year=year, quarter=quarter)
-        ## Wrapping Tools
-        ## ---------------------------------------------------- FMP Tools---------------------------------------------------- ##
-        ## ECC
-        self.get_latest_ecc_tool = tool(
-            name_or_callable='Latest_Earning_Transcripts',
-            description='Get latest earning conference call transcripts for the ticker.'
-        )(self._get_latest_ecc)
-
-        ## Main Product
-        self.get_main_products_tool = tool(
-            name_or_callable='Main_Products',
-            description='Get main selling products for the ticker.'
-        )(self._get_main_products)
-
-        ## Product Segment Growth
-        self.get_yearly_product_segment_growth = tool(
-            name_or_callable='Yearly_Product_Revenue_Growth',
-            description='Get past year to year product revenue growth for the ticker.'
-        )(self._get_yearly_product_segment_growth)
-
-        ## ---------------------------------------------------- SEC Filing Tools ---------------------------------------------------- ##
-        self.get_latest_filing_item1_tool = tool(
-            name_or_callable='Latest_SEC_Filing_10K_item1',
-            description='Get Latest SEC Filing 10K item1 for the ticker. item1 is about Business Description'
-        )(self._get_latest_filing_item1)
-
-        self.get_latest_filing_item1a_tool = tool(
-            name_or_callable='Latest_SEC_Filing_10K_item1a',
-            description='Get Latest SEC Filing 10K item1a for the ticker. item1a is about Risk Factors'
-        )(self._get_latest_filing_item1a)
-
-        self.get_latest_filing_item7_tool = tool(
-            name_or_callable='Latest_SEC_Filing_10K_item7',
-            description='Get Latest SEC Filing 10K item7 for the ticker. item7 is about Management’s Discussion and Analysis (MD&A)'
-        )(self._get_latest_filing_item7)
-        ## ---------------------------------------------------- Yfinance Tools ---------------------------------------------------- ##
-        ## Stock Price
-        self.get_stock_price_tool = tool(
-            name_or_callable='Stock_Price_Movement',
-            description='Get closing stock prices for the ticker.'
-        )(self._get_yfinance_stock_price)
-
-        ## Ratios
-        self.get_quarterly_current_ratio_tool = tool(
-            name_or_callable='Quarterly_Current_Ratio',
-            description='Get past quarter to quarter current ratio for the ticker.'
-        )(self._get_quarterly_current_ratio)
-        self.get_quarterly_cash_ratio_tool = tool(
-            name_or_callable='Quarterly_Cash_Ratio',
-            description='Get past quarter to quarter cash ratio for the ticker.'
-        )(self._get_quarterly_cash_ratio)
-        self.get_quarterly_quick_ratio_tool = tool(
-            name_or_callable='Quarterly_Quick_ratio',
-            description='Get past quarter to quarter quick ratio for the ticker.'
-        )(self._get_quarterly_quick_ratio)
-
-        ## IS
-        self.get_quarterly_total_revenue_tool = tool(
-            name_or_callable='Quarterly_Total_revenue',
-            description='Get past quarter to quarter total revenue for the ticker.'
-        )(self._get_quarterly_total_revenue)
-        self.get_quarterly_total_revenue_growth_tool = tool(
-            name_or_callable='Quarterly_Total_Revenue_Growth',
-            description='Get past quarter to quarter total revenue growth for the ticker.'
-        )(self._get_quarterly_total_revenue_growth)
-
-        self.get_quarterly_ebitda_tool = tool(
-            name_or_callable='Quarterly_Ebitda',
-            description='Get past quarter to quarter ebitda for the ticker.'
-        )(self._get_quarterly_ebitda)
-        self.get_quarterly_ebitda_growth_tool = tool(
-            name_or_callable='Quarterly_Ebitda_Growth',
-            description='Get past quarter to quarter ebitda growth for the ticker.'
-        )(self._get_quarterly_ebitda_growth)
-        ## ---------------------------------------------------- Local MYSQL Tools ---------------------------------------------------- ##
-        self.get_competitors_info_tool = tool(
-            name_or_callable='Competitors_Info',
-            description="Get competitors infos, it contained the competitor's name and main product they competed with the ticker."
-        )(self._get_competitors_info)
-
-        ## register all tools
-        self.all_tools = self._register_tools()
-
-    def _register_tools(self) -> Dict[str, Literal[BaseTool, Callable[[Union[Callable, Runnable]], BaseTool]]]:
-        """tools registration"""
-        return {
-            tool.name: tool
-            for tool in vars(self).values()
-            if isinstance(tool, BaseTool)
-        }
-    def _get_tools(self) -> Dict[str, Literal[BaseTool, Callable[[Union[Callable, Runnable]], BaseTool]]]:
-        return self.all_tools
-
 if __name__ == '__main__':
 
-    agenttools = AgentTools('AAPL', 2025, 1)
-    tools = agenttools._register_tools()
-    count = 0
-    for key, value in tools.items():
-        print(f'{count}. {key}')
-        count += 1
+    helper = ToolsHelper('AAPL', 2025, 1)
 
-    agenttoolsHelp = AgentToolsHelper('AAPL', 2025, 1)
-    print(agenttoolsHelp._get_competitors_info())
-    print(agenttoolsHelp._get_estimate_price())
-    print(agenttoolsHelp._get_yearly_product_segment_growth())
-    print(agenttoolsHelp._get_quarterly_ebitda())
-    print(agenttoolsHelp._get_quarterly_cash_ratio())
-    print(agenttoolsHelp._get_quarterly_quick_ratio())
-    print(agenttoolsHelp._get_quarterly_total_revenue())
-    print(agenttoolsHelp._get_quarterly_total_revenue_growth())
+
+    async def main():
+        # sync methods can still be called directly
+        print(helper._get_estimate_price())
+        print(helper._get_yearly_product_segment_growth())
+        print(helper._get_quarterly_ebitda())
+        print(helper._get_quarterly_cash_ratio())
+        print(helper._get_quarterly_quick_ratio())
+        print(helper._get_quarterly_total_revenue())
+        print(helper._get_quarterly_total_revenue_growth())
+
+        # async methods *must* be awaited
+        competitors_info = await helper._get_competitors_info()
+        print(competitors_info)
+        import time
+        start = time.perf_counter()
+        comp_and_data = await helper._get_comp_and_competitors_data()
+        end = time.perf_counter()
+        print(f"Elapsed: {end - start:.6f} s")
+        print(comp_and_data)
+    asyncio.run(main())
