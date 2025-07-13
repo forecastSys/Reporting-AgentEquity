@@ -36,5 +36,7 @@ class SharedInstruction:
 @dataclass
 class EvaluatorConfig:
     name: str
-    desc: str
+    evaluator_instruction: str
+    evaluator2assistant_instruction: str
+
 ## --- <END> ---

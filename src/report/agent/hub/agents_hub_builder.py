@@ -1,4 +1,4 @@
-from src.report.models import ReportTeamConfig
+from src.report.models import ReportTeamConfig, EvaluatorConfig
 from textwrap import dedent
 
 # sections = section['full_name'],
@@ -15,7 +15,10 @@ class AgentsHubBuilder:
                 return all(word.istitle() for word in phrase.split() if word.isalpha())
 
             if not _is_title_case(phrase):
-                raise ValueError("Each word must start with a capital letter. Your section name is: {}".format(phrase))
+                raise ValueError(
+                    f"[{AgentsHubBuilder.__name__}.build_sup_hub._get_acronym] Invalid section name: '{phrase}'. "
+                    "Each word must start with a capital letter (e.g., 'Fair Value', 'Business Strategy')."
+                )
 
             return ''.join(word[0] for word in phrase.split() if word[0].isupper())
 
@@ -37,6 +40,18 @@ class AgentsHubBuilder:
                 prompt_section_tools=", ".join(section.tools),
                 prompt_section_deliverable=desc.section_deliverable,
                 desc=dedent(prompt_template),
-                assistant_instruction=instruction.assistant_instruction
+                assistant_instruction=dedent(instruction)
             )
         return sup_hub
+
+    @staticmethod
+    def build_eval_hub(prompt_template):
+        name = "evaluator"
+        eval2assit_instruction = ("\n\n **Please refine your written section base on the feedback, "
+                                  "Please only refine your previous written section, DO NOT REMOVE ANY PART unless it is mentioned by the feedback provided.**")
+        evaluation_hub = EvaluatorConfig(
+            name=name,
+            evaluator_instruction=dedent(prompt_template),
+            evaluator2assistant_instruction=dedent(eval2assit_instruction)
+        )
+        return evaluation_hub

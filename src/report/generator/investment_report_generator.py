@@ -4,13 +4,12 @@ from src.report.prompts import (
     RISK_ASSESSMENT_SECTION_PROMPT,
 )
 from src.config import OPENAI_API_KEY
-from src.fdata_extractors.ecc_extractor import FMPTranscriptFetcher
+from src.fdata_extractors.fmp_extractors.fmp_ecc_extractor import FMPTranscriptFetcher
 from src.fdata_extractors.sec_filing_extractor import fetch_sec_filings_text
-from src.fdata_extractors.findata_extractor import YFinanceAnalyzer
+from src.fdata_extractors.yfinance_extractors.yf_findata_extractor import YFinanceAnalyzer
 from src.report.parser import ReportGenerated, SummaryGenerated
 import datetime
 from langchain.chat_models import ChatOpenAI
-from langchain.chains import LLMChain
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
 import pandas as pd
@@ -157,7 +156,6 @@ class InvestmentReportGenerator:
 
 if __name__ == "__main__":
     from dotenv import load_dotenv
-    import os
 
     load_dotenv()
     ticker = "AAPL"

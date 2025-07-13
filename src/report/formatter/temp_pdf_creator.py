@@ -1,16 +1,15 @@
 # from src.report.generator import InvestmentReportGenerator
 import datetime
 
-from src.fdata_extractors.findata_extractor import YFinanceAnalyzer
+from src.fdata_extractors.yfinance_extractors.yf_findata_extractor import YFinanceAnalyzer
 from src.report.plotter import FinancialPlotter
 from src.report.formatter import ReportLabStyles, ReportLabFrame
 
 from reportlab.lib import pagesizes, colors
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import (
-    SimpleDocTemplate, Frame, PageTemplate,
-    Paragraph, Image, Table, TableStyle,
-    Spacer, FrameBreak, NextPageTemplate, PageBreak, KeepTogether, KeepInFrame, HRFlowable
+    SimpleDocTemplate, Paragraph, Image, Table, TableStyle,
+    FrameBreak, NextPageTemplate, PageBreak, KeepInFrame, HRFlowable
 )
 
 import json
@@ -165,7 +164,7 @@ class CombinedReportPDF(ReportLabStyles,
         filename = self.FDATA_DIR / f"{self.ticker}_{self.year}_{self.quarter}_table_df.csv"
         if not os.path.exists(filename):
             # # Prepare annual metrics table
-            # # Use yfinance annual financials and balance sheet
+            # # Use yfinance_extractors annual financials and balance sheet
 
             ## append years if less than 5
             idx = pd.to_datetime(annual_fs.columns)
